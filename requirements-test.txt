@@ -1,0 +1,41 @@
+# Testing dependencies for helix-narrative-engine
+
+# Core testing framework
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-timeout>=2.1.0
+pytest-mock>=3.11.1
+pytest-xdist>=3.3.1
+
+# Mocking and fixtures
+unittest-mock>=1.5.0
+responses>=0.23.0
+faker>=19.0.0
+
+# Code quality and linting
+black>=23.7.0
+flake8>=6.0.0
+isort>=5.12.0
+mypy>=1.4.0
+pylint>=2.17.0
+
+# Type checking
+types-requests>=2.31.0
+types-setuptools>=68.0.0
+
+# Performance testing
+memory-profiler>=0.61.0
+line-profiler>=4.0.0
+
+# Coverage and reporting
+coverage>=7.2.0
+coverage-badge>=1.1.0
+
+# Async testing
+asynctest>=0.13.0
+aioresponses>=0.7.4
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.0.0
