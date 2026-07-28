@@ -1,34 +1,83 @@
-"""
-Helix Narrative Engine
-Multi-LLM creative content generation with agent specialization
+"""Helix Narrative Engine public API."""
 
-A Python library for generating high-quality narrative content through
-coordinated multi-agent workflows. Perfect for creative AI applications,
-story generation, and content automation.
-"""
-
-from .engine import (
-    generateNarrative,
-    NarrativeGenerationResult,
-    GenerationMetadata,
-    GenerationOptions,
-)
 from .agents import (
-    getAgentConfig,
+    AGENTS,
+    PRESETS,
+    AgentDefinition,
     applyPresetMode,
-    PRESET_MODES,
+    build_plan,
+    get_agent,
+    get_all_agents,
+    get_all_presets,
+    get_preset,
+    getAgentConfig,
+)
+from .engine import (
+    NarrativeEngine,
+    NarrativeGenerationResult,
+    generate_narrative,
+    generateNarrative,
+)
+from .exceptions import (
+    BudgetExceededError,
+    ConfigurationError,
+    InputValidationError,
+    NarrativeEngineError,
+    OutputError,
+    ProviderError,
+)
+from .models import (
+    GenerationOptions,
+    GenerationPlan,
+    Message,
+    NarrativeResult,
+    ProviderResponse,
+    StageResult,
+    TokenUsage,
+)
+from .providers import (
+    AnthropicProvider,
+    OpenAICompatibleProvider,
+    OpenAIProvider,
+    Provider,
+    build_provider,
+    provider_from_env,
 )
 
-__version__ = "1.0.0"
-__author__ = "Helix Team"
-__license__ = "Apache 2.0"
+__version__ = "0.1.0"
 
 __all__ = [
-    "generateNarrative",
-    "NarrativeGenerationResult",
-    "GenerationMetadata",
+    "AGENTS",
+    "PRESETS",
+    "AgentDefinition",
+    "AnthropicProvider",
+    "BudgetExceededError",
+    "ConfigurationError",
     "GenerationOptions",
-    "getAgentConfig",
+    "GenerationPlan",
+    "InputValidationError",
+    "Message",
+    "NarrativeEngine",
+    "NarrativeEngineError",
+    "NarrativeGenerationResult",
+    "NarrativeResult",
+    "OpenAICompatibleProvider",
+    "OpenAIProvider",
+    "OutputError",
+    "Provider",
+    "ProviderError",
+    "ProviderResponse",
+    "StageResult",
+    "TokenUsage",
     "applyPresetMode",
-    "PRESET_MODES",
+    "build_plan",
+    "build_provider",
+    "generate_narrative",
+    "generateNarrative",
+    "getAgentConfig",
+    "get_agent",
+    "get_all_agents",
+    "get_all_presets",
+    "get_preset",
+    "provider_from_env",
 ]

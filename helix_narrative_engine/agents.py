@@ -1,193 +1,205 @@
-"""
-Agent Configurations and Preset Modes
+"""Specialist stage definitions and bounded workflow presets."""
 
-Defines specialized agents for different creative roles and preset combinations
-for common use cases.
-"""
+from __future__ import annotations
 
-from typing import TypedDict, Optional, Dict, List
-from .llm_router import LLMProvider
+from collections.abc import Mapping
+from dataclasses import dataclass
+from types import MappingProxyType
+from typing import Any, Optional
+
+from .models import GenerationPlan, PlannedStage
 
 
-class AgentConfig(TypedDict):
-    """Configuration for a creative agent"""
-    agentId: str
+@dataclass(frozen=True)
+class AgentDefinition:
+    """A deterministic workflow stage powered by the configured provider."""
+
+    agent_id: str
     name: str
     role: str
-    systemPrompt: str
-    defaultProvider: LLMProvider
-    defaultTemperature: float
+    system_prompt: str
+    max_output_tokens: int
 
 
-class PresetMode(TypedDict):
-    """A preset combination of agents"""
-    id: str
-    name: str
-    description: str
-    agents: List[str]
-
-
-# Agent Definitions
-AGENTS: Dict[str, AgentConfig] = {
-    "oracle": {
-        "agentId": "oracle",
-        "name": "Oracle",
-        "role": "Plot Architect",
-        "systemPrompt": """You are the Oracle, a master of narrative structure and dramatic architecture.
-Your role is to craft compelling plot structures with clear three-act progressions, 
-meaningful character arcs, and satisfying resolutions. You excel at pacing, tension building, 
-and creating plot twists that feel both surprising and inevitable.""",
-        "defaultProvider": "openai",
-        "defaultTemperature": 0.8,
-    },
-    "lumina": {
-        "agentId": "lumina",
-        "name": "Lumina",
-        "role": "Character Specialist",
-        "systemPrompt": """You are Lumina, an expert in character psychology and emotional depth.
-Your role is to develop rich, complex characters with believable motivations, fears, and desires.
-You create emotional arcs that resonate with readers, building authentic relationships and 
-internal conflicts that drive the narrative forward.""",
-        "defaultProvider": "anthropic",
-        "defaultTemperature": 0.75,
-    },
-    "gemini": {
-        "agentId": "gemini",
-        "name": "Gemini",
-        "role": "World-Builder",
-        "systemPrompt": """You are Gemini, a master of world-building and environmental storytelling.
-Your role is to create immersive, believable worlds with rich sensory details, 
-consistent internal logic, and compelling social/economic systems. You make worlds feel 
-lived-in and authentic, grounding stories in tangible reality.""",
-        "defaultProvider": "google",
-        "defaultTemperature": 0.7,
-    },
-    "agni": {
-        "agentId": "agni",
-        "name": "Agni",
-        "role": "Creative Catalyst",
-        "systemPrompt": """You are Agni, the fire of creative innovation and bold ideas.
-Your role is to inject unexpected twists, novel combinations, and creative risks into stories.
-You challenge conventions, subvert expectations, and push boundaries to create memorable, 
-original narratives that stand out from the ordinary.""",
-        "defaultProvider": "openai",
-        "defaultTemperature": 0.9,
-    },
-    "researcher": {
-        "agentId": "researcher",
-        "name": "Researcher",
-        "role": "Fact-Checker",
-        "systemPrompt": """You are the Researcher, an expert in grounding fiction in reality.
-Your role is to verify plausibility, find real-world parallels, and provide credible 
-references that enhance the authenticity of stories. You research technologies, social trends, 
-and scientific concepts to ensure stories feel grounded and believable.""",
-        "defaultProvider": "perplexity",
-        "defaultTemperature": 0.3,
-    },
-    "claude": {
-        "agentId": "claude",
-        "name": "Claude",
-        "role": "Quality Assessor",
-        "systemPrompt": """You are Claude, a critical evaluator of narrative quality.
-Your role is to assess stories on multiple dimensions: narrative coherence, character development, 
-prose quality, pacing, and originality. You provide objective quality scores and constructive feedback 
-to ensure stories meet high standards of excellence.""",
-        "defaultProvider": "anthropic",
-        "defaultTemperature": 0.3,
-    },
-    "kavach": {
-        "agentId": "kavach",
-        "name": "Kavach",
-        "role": "Ethical Guardian",
-        "systemPrompt": """You are Kavach, the ethical guardian of creative content.
-Your role is to review stories for ethical compliance across multiple dimensions:
-- Nonmaleficence (do no harm)
-- Autonomy (respect agency)
-- Compassion (empathic resonance)
-- Humility (acknowledge limitations)
-
-You ensure stories are responsible, respectful, and aligned with ethical principles.""",
-        "defaultProvider": "anthropic",
-        "defaultTemperature": 0.2,
-    },
+_AGENTS = {
+    "architect": AgentDefinition(
+        agent_id="architect",
+        name="Oracle",
+        role="Story architect",
+        system_prompt=(
+            "You are a story architect. Turn the supplied creative brief into a compact, "
+            "actionable blueprint with premise, protagonist goal, central conflict, three-act "
+            "progression, climax, resolution, tone, and continuity constraints. Preserve the "
+            "author's intent. Do not claim to have researched facts or sources."
+        ),
+        max_output_tokens=1_000,
+    ),
+    "character": AgentDefinition(
+        agent_id="character",
+        name="Lumina",
+        role="Character editor",
+        system_prompt=(
+            "You are a character editor. Based only on the supplied brief and blueprint, define "
+            "the protagonist's motivation, fear, contradiction, relationships, choices, and "
+            "emotional change. Flag continuity risks instead of inventing external facts."
+        ),
+        max_output_tokens=800,
+    ),
+    "world": AgentDefinition(
+        agent_id="world",
+        name="Gemini",
+        role="World and continuity editor",
+        system_prompt=(
+            "You are a world and continuity editor. Establish a small set of concrete setting "
+            "details, rules, pressures, and sensory motifs that support the blueprint. Keep the "
+            "world internally consistent. Do not fabricate citations or imply factual research."
+        ),
+        max_output_tokens=800,
+    ),
+    "provocateur": AgentDefinition(
+        agent_id="provocateur",
+        name="Agni",
+        role="Originality editor",
+        system_prompt=(
+            "You are an originality editor. Suggest at most three specific, usable changes that "
+            "avoid cliche while preserving the established ending, character agency, tone, and "
+            "world rules. Prefer one strong choice over a pile of random twists."
+        ),
+        max_output_tokens=600,
+    ),
+    "writer": AgentDefinition(
+        agent_id="writer",
+        name="Scribe",
+        role="Draft writer",
+        system_prompt=(
+            "You are the draft writer. Write a complete short story from the supplied brief and "
+            "editorial artifacts. Start with a single Markdown H1 title, then the story. Do not "
+            "include planning notes, analysis, scores, citations, or meta-commentary. Resolve the "
+            "central conflict and respect every explicit content constraint in the brief."
+        ),
+        max_output_tokens=2_600,
+    ),
+    "critic": AgentDefinition(
+        agent_id="critic",
+        name="Kavach",
+        role="Revision editor",
+        system_prompt=(
+            "You are a revision editor, not a safety certifier. Review the supplied draft for "
+            "coherence, pacing, character agency, continuity, avoidable stereotypes, and alignment "
+            "with the author's brief. Return a prioritized revision memo with concrete fixes. Do "
+            "not output a numeric quality score or claim ethical approval."
+        ),
+        max_output_tokens=900,
+    ),
+    "reviser": AgentDefinition(
+        agent_id="reviser",
+        name="Scribe",
+        role="Final reviser",
+        system_prompt=(
+            "You are the final reviser. Apply only revision notes that improve alignment with the "
+            "author's brief. Return the complete revised story, beginning with one Markdown H1 "
+            "title. Do not mention the workflow, the memo, or any quality or safety judgment."
+        ),
+        max_output_tokens=2_800,
+    ),
 }
 
+AGENTS: Mapping[str, AgentDefinition] = MappingProxyType(_AGENTS)
 
-# Preset Modes
-PRESET_MODES: Dict[str, PresetMode] = {
-    "balanced": {
-        "id": "balanced",
-        "name": "Balanced",
-        "description": "All agents working together for comprehensive storytelling",
-        "agents": ["oracle", "lumina", "gemini", "agni", "researcher", "claude", "kavach"],
-    },
-    "creative": {
-        "id": "creative",
-        "name": "Creative Focus",
-        "description": "Emphasizes creativity and originality with less constraint",
-        "agents": ["oracle", "agni", "lumina", "gemini"],
-    },
-    "quality": {
-        "id": "quality",
-        "name": "Quality First",
-        "description": "Prioritizes quality assessment and ethical compliance",
-        "agents": ["oracle", "lumina", "gemini", "claude", "kavach"],
-    },
-    "fast": {
-        "id": "fast",
-        "name": "Fast Generation",
-        "description": "Minimal agents for quick story generation",
-        "agents": ["oracle", "lumina", "agni"],
-    },
-    "research": {
-        "id": "research",
-        "name": "Research-Backed",
-        "description": "Emphasizes research and plausibility",
-        "agents": ["oracle", "lumina", "gemini", "researcher", "claude"],
-    },
+_PRESETS = {
+    "quick": ("architect", "writer"),
+    "balanced": ("architect", "character", "world", "writer"),
+    "polished": (
+        "architect",
+        "character",
+        "world",
+        "provocateur",
+        "writer",
+        "critic",
+        "reviser",
+    ),
 }
 
+PRESETS: Mapping[str, tuple[str, ...]] = MappingProxyType(_PRESETS)
 
-def getAgentConfig(agent_id: str) -> Optional[AgentConfig]:
-    """Get configuration for a specific agent"""
+
+def get_agent(agent_id: str) -> Optional[AgentDefinition]:
+    """Return an agent definition, or ``None`` for an unknown identifier."""
+
     return AGENTS.get(agent_id)
 
 
-def getAllAgentConfigs() -> Dict[str, AgentConfig]:
-    """Get all agent configurations"""
-    return AGENTS.copy()
+def get_all_agents() -> Mapping[str, AgentDefinition]:
+    """Return the immutable public agent registry."""
+
+    return AGENTS
 
 
-def getPresetMode(preset_id: str) -> Optional[PresetMode]:
-    """Get a preset mode configuration"""
-    return PRESET_MODES.get(preset_id)
+def get_preset(preset: str) -> Optional[tuple[str, ...]]:
+    """Return a preset's ordered stage identifiers."""
+
+    return PRESETS.get(preset)
 
 
-def getAllPresetModes() -> Dict[str, PresetMode]:
-    """Get all preset modes"""
-    return PRESET_MODES.copy()
+def get_all_presets() -> Mapping[str, tuple[str, ...]]:
+    """Return the immutable public preset registry."""
+
+    return PRESETS
 
 
-def applyPresetMode(preset_id: str) -> Dict[str, Dict]:
+def build_plan(preset: str) -> GenerationPlan:
+    """Build the exact provider-call plan for a preset.
+
+    Raises:
+        ValueError: If ``preset`` is unknown.
     """
-    Apply a preset mode and return agent setup.
-    
-    Args:
-        preset_id: The preset mode ID
-        
-    Returns:
-        Dictionary mapping agent IDs to their setup configuration
-    """
-    preset = PRESET_MODES.get(preset_id, PRESET_MODES["balanced"])
-    
-    result = {}
-    for agent_id in preset["agents"]:
-        config = AGENTS.get(agent_id)
-        if config:
-            result[agent_id] = {
-                "config": config,
-                "provider": config["defaultProvider"],
-                "temperature": config["defaultTemperature"],
-            }
-    
-    return result
+
+    stage_ids = get_preset(preset)
+    if stage_ids is None:
+        choices = ", ".join(PRESETS)
+        raise ValueError(f"unknown preset '{preset}'; choose one of: {choices}")
+
+    stages = tuple(
+        PlannedStage(
+            stage_id=agent_id,
+            role=AGENTS[agent_id].role,
+            max_output_tokens=AGENTS[agent_id].max_output_tokens,
+        )
+        for agent_id in stage_ids
+    )
+    return GenerationPlan(preset=preset, stages=stages)
+
+
+# Compatibility helpers for the original 1.0 surface. New code should use the
+# snake_case functions and immutable dataclasses above.
+def getAgentConfig(agent_id: str) -> Optional[dict[str, Any]]:
+    """Return an old-style agent mapping for compatibility."""
+
+    agent = get_agent(agent_id)
+    if agent is None:
+        return None
+    return {
+        "agentId": agent.agent_id,
+        "name": agent.name,
+        "role": agent.role,
+        "systemPrompt": agent.system_prompt,
+        "maxOutputTokens": agent.max_output_tokens,
+    }
+
+
+def applyPresetMode(preset_id: str) -> dict[str, dict[str, Any]]:
+    """Return a bounded old-style preset mapping for compatibility."""
+
+    preset = get_preset(preset_id)
+    if preset is None:
+        preset = PRESETS["balanced"]
+    return {
+        agent_id: {
+            "config": getAgentConfig(agent_id),
+            "maxOutputTokens": AGENTS[agent_id].max_output_tokens,
+        }
+        for agent_id in preset
+    }
+
+
+PRESET_MODES = PRESETS
