@@ -1,550 +1,176 @@
-# Helix Narrative Engine: Getting Started Guide
+# Getting started
 
-**Get up and running with multi-LLM creative content generation in minutes**
+This guide takes a new user from a source checkout to one inspectable narrative run. It does not assume
+a published PyPI package or any private Helix infrastructure.
 
----
+## 1. Create an isolated environment
 
-## Table of Contents
-
-1. [Installation](#installation)
-2. [Quick Start](#quick-start)
-3. [Configuration](#configuration)
-4. [Basic Usage](#basic-usage)
-5. [Advanced Usage](#advanced-usage)
-6. [Troubleshooting](#troubleshooting)
-7. [Next Steps](#next-steps)
-
----
-
-## Installation
-
-### Prerequisites
-
-- Python 3.8+
-- pip or poetry
-- API keys for at least one LLM provider
-
-### From PyPI (Recommended)
+Helix Narrative Engine supports Python 3.10–3.14. Python 3.9 is intentionally unsupported because its
+official security support ended in October 2025.
 
 ```bash
-pip install helix-narrative-engine
+python -m venv .venv
 ```
 
-### From Source
+Activate it:
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+Or on macOS/Linux:
 
 ```bash
-git clone https://github.com/Deathcharge/helix-narrative-engine.git
-cd helix-narrative-engine
-pip install -e .
+source .venv/bin/activate
 ```
 
-### Development Installation
+Install the core and the one provider you intend to use:
 
 ```bash
-git clone https://github.com/Deathcharge/helix-narrative-engine.git
-cd helix-narrative-engine
-pip install -e ".[dev]"
+python -m pip install -e ".[openai]"
 ```
 
----
+Use `.[anthropic]` for Anthropic. xAI and Perplexity use the `.[openai]` compatibility adapter. The
+base package has no runtime dependencies and is sufficient for custom provider implementations.
 
-## Quick Start
+## 2. Inspect the run before spending
 
-### 1. Set Up API Keys
-
-Create a `.env` file in your project directory:
+The plan command needs no API key and makes no network request:
 
 ```bash
-# OpenAI (Recommended for best results)
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4
-
-# Anthropic (Excellent alternative)
-ANTHROPIC_API_KEY=sk-ant-...
-ANTHROPIC_MODEL=claude-3-opus
-
-# Google Gemini (Cost-effective option)
-GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-pro
-
-# xAI Grok (Fast option)
-GROK_API_KEY=...
-GROK_MODEL=grok-1
-
-# Perplexity (Research-focused)
-PERPLEXITY_API_KEY=...
-PERPLEXITY_MODEL=pplx-7b-online
+helix-narrative plan --preset balanced
 ```
 
-### 2. Create Your First Script
+Expected structure:
+
+```text
+Preset: balanced
+1. architect - Story architect (max 1000 output tokens)
+2. character - Character editor (max 800 output tokens)
+3. world - World and continuity editor (max 800 output tokens)
+4. writer - Draft writer (max 2600 output tokens)
+Maximum provider calls: 4
+Maximum requested output tokens: 5200
+Input tokens are provider-dependent and are not estimated by this command.
+```
+
+Use `--json` for machine-readable output.
+
+## 3. Configure one provider
+
+Set the key in the current shell. PowerShell example:
+
+```powershell
+$env:OPENAI_API_KEY = "your-key"
+```
+
+macOS/Linux example:
+
+```bash
+export OPENAI_API_KEY="your-key"
+```
+
+The package does not load `.env` automatically. `.env.example` is a names-only template. If your own
+application loads a secrets file, keep it out of version control and restrict its filesystem access.
+
+## 4. Generate and persist one story
+
+Create `brief.txt` as UTF-8 text, for example:
+
+```text
+A cartographer discovers that a city moves every night. Write a hopeful speculative story in which
+solving the map requires trusting a former rival. Avoid a chosen-one reveal.
+```
+
+Run:
+
+```bash
+helix-narrative generate --prompt-file brief.txt --preset balanced --output story.md --artifacts run.json
+```
+
+`story.md` contains only the final model output. `run.json` contains the final story plus every stage,
+model ID, duration, configured output cap, and provider-reported token count. The original brief is not
+persisted by the engine, although generated artifacts can repeat its content.
+
+If a destination already exists, generation exits with code 4 before provider construction or paid API
+use. Add `--force` only when replacement is intentional.
+
+## 5. Handle ordinary failures
+
+- Missing key or optional SDK: exit 2 with the required environment variable or install extra.
+- Empty/oversized prompt or insufficient call/token budget: exit 2 before a provider call.
+- Rate limit, provider error, empty response, or timeout: exit 3; no partial result is presented as
+  success.
+- Existing/invalid/unwritable output: exit 4; pre-existing content is preserved unless `--force` was
+  explicit.
+- `Ctrl+C`: exit 130.
+
+Provider errors are intentionally sanitized. In a trusted Python integration, the original SDK
+exception remains available as the exception cause for debugging; do not expose it to end users without
+review.
+
+## 6. Use the Python API
 
 ```python
 import asyncio
-from helix_narrative_engine import NarrativeEngine
 
-async def main():
-    # Initialize the engine
-    engine = NarrativeEngine()
-    
-    # Generate a narrative
+from helix_narrative_engine import GenerationOptions, NarrativeEngine, OpenAIProvider
+
+
+async def main() -> None:
+    engine = NarrativeEngine(OpenAIProvider())
     result = await engine.generate(
-        prompt="Write a short story about an AI discovering consciousness",
-        style="philosophical",
-        tone="contemplative"
+        "A botanist finds a flower that remembers extinct languages.",
+        GenerationOptions(preset="quick", max_calls=2, max_total_output_tokens=3_600),
     )
-    
-    # Print results
-    print("Generated Narrative:")
-    print(result['narrative'])
-    print(f"\nQuality Score: {result['quality_score']}")
-    print(f"Cost: ${result['cost']:.4f}")
+    print(result.title)
+    print(result.content)
+    print(result.usage.to_dict())
 
-# Run the script
-asyncio.run(main())
-```
-
-### 3. Run Your Script
-
-```bash
-python your_script.py
-```
-
----
-
-## Configuration
-
-### Basic Configuration
-
-```python
-from helix_narrative_engine import NarrativeEngine
-
-engine = NarrativeEngine(
-    primary_llm="openai",           # Primary LLM provider
-    fallback_llms=["anthropic"],    # Fallback providers
-    agents=["Oracle", "Lumina"],    # Agents to use
-    quality_threshold=0.85,         # Minimum quality score
-    max_retries=3,                  # Retry attempts
-    timeout=30                      # Request timeout
-)
-```
-
-### Advanced Configuration
-
-```python
-config = {
-    # LLM Configuration
-    "primary_llm": "openai",
-    "fallback_llms": ["anthropic", "gemini"],
-    
-    # Agent Configuration
-    "agents": ["Oracle", "Lumina", "Researcher"],
-    
-    # Quality Settings
-    "quality_threshold": 0.85,
-    "max_retries": 3,
-    "timeout": 30,
-    
-    # Generation Settings
-    "temperature": 0.7,
-    "max_tokens": 2000,
-    
-    # Performance Settings
-    "batch_size": 5,
-    "cache_enabled": True,
-    "cache_ttl": 3600,
-    
-    # Monitoring
-    "enable_metrics": True,
-    "log_level": "INFO"
-}
-
-engine = NarrativeEngine(**config)
-```
-
-### Using Configuration Files
-
-```python
-import json
-from helix_narrative_engine import NarrativeEngine
-
-# Load configuration from file
-with open("config.json") as f:
-    config = json.load(f)
-
-engine = NarrativeEngine(**config)
-```
-
----
-
-## Basic Usage
-
-### 1. Simple Text Generation
-
-```python
-import asyncio
-from helix_narrative_engine import NarrativeEngine
-
-async def main():
-    engine = NarrativeEngine()
-    
-    result = await engine.generate(
-        prompt="Write a haiku about technology"
-    )
-    
-    print(result['narrative'])
 
 asyncio.run(main())
 ```
 
-### 2. Styled Generation
-
-```python
-async def main():
-    engine = NarrativeEngine()
-    
-    result = await engine.generate(
-        prompt="Write about the future of AI",
-        style="technical",
-        tone="optimistic",
-        length="medium"
-    )
-    
-    print(result['narrative'])
-
-asyncio.run(main())
-```
-
-### 3. Using Preset Modes
-
-```python
-async def main():
-    engine = NarrativeEngine()
-    
-    # Balanced mode: Good quality, reasonable cost
-    engine.set_preset_mode("balanced")
-    result = await engine.generate("Write a story")
-    
-    # Creative mode: Emphasis on creativity
-    engine.set_preset_mode("creative")
-    result = await engine.generate("Write a poem")
-    
-    # Quality mode: Highest quality
-    engine.set_preset_mode("quality")
-    result = await engine.generate("Write an article")
-    
-    # Fast mode: Quick generation
-    engine.set_preset_mode("fast")
-    result = await engine.generate("Write a summary")
-    
-    # Research mode: Evidence-backed
-    engine.set_preset_mode("research")
-    result = await engine.generate("Research AI ethics")
-
-asyncio.run(main())
-```
-
-### 4. Batch Processing
-
-```python
-async def main():
-    engine = NarrativeEngine()
-    
-    prompts = [
-        "Write a poem about technology",
-        "Write a story about robots",
-        "Write a dialogue between AI and human"
-    ]
-    
-    results = await engine.generate_batch(prompts)
-    
-    for i, result in enumerate(results):
-        print(f"\n--- Result {i+1} ---")
-        print(result['narrative'])
-
-asyncio.run(main())
-```
-
-### 5. Quality Assessment
-
-```python
-async def main():
-    engine = NarrativeEngine()
-    
-    result = await engine.generate(
-        prompt="Write about consciousness"
-    )
-    
-    # Check quality score
-    if result['quality_score'] >= 0.85:
-        print("High quality narrative generated!")
-    else:
-        print("Regenerating for better quality...")
-        result = await engine.generate(
-            prompt="Write about consciousness",
-            quality_threshold=0.95
-        )
-
-asyncio.run(main())
-```
-
----
-
-## Advanced Usage
-
-### 1. Custom Agent Selection
-
-```python
-async def main():
-    # Use specific agents for specific tasks
-    engine = NarrativeEngine(
-        agents=["Researcher", "Oracle", "Claude"]
-    )
-    
-    result = await engine.generate(
-        prompt="Write a research-backed article about AI ethics"
-    )
-    
-    print(f"Agents used: {result['agents_used']}")
-
-asyncio.run(main())
-```
-
-### 2. Error Handling and Recovery
-
-```python
-from helix_narrative_engine.exceptions import (
-    NarrativeEngineError,
-    LLMProviderError,
-    QualityAssessmentError
-)
-
-async def main():
-    engine = NarrativeEngine()
-    
-    try:
-        result = await engine.generate(
-            prompt="Write about consciousness"
-        )
-    except LLMProviderError as e:
-        print(f"LLM provider error: {e}")
-        print("Retrying with fallback provider...")
-    except QualityAssessmentError as e:
-        print(f"Quality assessment failed: {e}")
-    except NarrativeEngineError as e:
-        print(f"Narrative engine error: {e}")
-
-asyncio.run(main())
-```
-
-### 3. Cost Optimization
-
-```python
-async def main():
-    # Use fast mode for cost-sensitive applications
-    engine = NarrativeEngine()
-    engine.set_preset_mode("fast")
-    
-    result = await engine.generate(
-        prompt="Generate a summary"
-    )
-    
-    print(f"Cost: ${result['cost']:.4f}")
-    print(f"Tokens used: {result['tokens_used']}")
-
-asyncio.run(main())
-```
-
-### 4. Performance Monitoring
-
-```python
-async def main():
-    engine = NarrativeEngine()
-    
-    result = await engine.generate(
-        prompt="Write a detailed article"
-    )
-    
-    # Monitor performance metrics
-    print(f"Generation time: {result['generation_time']:.2f}s")
-    print(f"Tokens used: {result['tokens_used']}")
-    print(f"Cost: ${result['cost']:.4f}")
-    print(f"Quality score: {result['quality_score']}")
-    print(f"LLM used: {result['llm_used']}")
-
-asyncio.run(main())
-```
-
-### 5. Streaming Generation
-
-```python
-async def main():
-    engine = NarrativeEngine()
-    
-    # Stream narrative generation
-    async for chunk in engine.stream_generate(
-        prompt="Write a long story"
-    ):
-        print(chunk, end="", flush=True)
-
-asyncio.run(main())
-```
-
----
+Read [API_REFERENCE.md](API_REFERENCE.md) for the full supported surface.
 
 ## Troubleshooting
 
-### Issue: API Key Not Found
+### `helix-narrative` is not found
 
-**Error:** `KeyError: 'OPENAI_API_KEY'`
-
-**Solution:** Ensure your `.env` file is in the correct location and contains the API key:
+Confirm the virtual environment is active and the editable install succeeded:
 
 ```bash
-# Check if .env file exists
-ls -la .env
-
-# Verify API key is set
-echo $OPENAI_API_KEY
+python -m helix_narrative_engine --version
 ```
 
-### Issue: Quality Score Too Low
+The module form and console command expose the same CLI.
 
-**Error:** `QualityAssessmentError: Quality score below threshold`
+### The model is unavailable to the account
 
-**Solution:** Adjust quality threshold or use a different preset mode:
-
-```python
-# Lower quality threshold
-engine = NarrativeEngine(quality_threshold=0.75)
-
-# Or use a different preset
-engine.set_preset_mode("balanced")
-```
-
-### Issue: Request Timeout
-
-**Error:** `TimeoutError: Request timeout`
-
-**Solution:** Increase timeout or use a faster LLM:
-
-```python
-# Increase timeout
-engine = NarrativeEngine(timeout=60)
-
-# Or use fast mode
-engine.set_preset_mode("fast")
-```
-
-### Issue: Rate Limiting
-
-**Error:** `LLMProviderError: Rate limit exceeded`
-
-**Solution:** Implement exponential backoff:
-
-```python
-import asyncio
-
-async def generate_with_backoff(engine, prompt, max_attempts=3):
-    for attempt in range(max_attempts):
-        try:
-            return await engine.generate(prompt)
-        except LLMProviderError:
-            if attempt < max_attempts - 1:
-                wait_time = 2 ** attempt
-                print(f"Rate limited. Waiting {wait_time}s...")
-                await asyncio.sleep(wait_time)
-            else:
-                raise
-```
-
-### Issue: High Costs
-
-**Error:** Unexpected high costs from API usage
-
-**Solution:** Monitor and optimize token usage:
-
-```python
-# Use smaller max_tokens
-engine = NarrativeEngine(max_tokens=1000)
-
-# Use fast mode
-engine.set_preset_mode("fast")
-
-# Monitor costs
-result = await engine.generate(prompt)
-print(f"Cost: ${result['cost']:.4f}")
-```
-
----
-
-## Next Steps
-
-### 1. Explore Advanced Features
-
-- Read the [API Reference](API_REFERENCE.md)
-- Check out [Best Practices](BEST_PRACTICES.md)
-- Review [Architecture Guide](ARCHITECTURE.md)
-
-### 2. Integrate with Your Application
-
-```python
-# Example: Flask integration
-from flask import Flask, request
-from helix_narrative_engine import NarrativeEngine
-
-app = Flask(__name__)
-engine = NarrativeEngine()
-
-@app.route('/generate', methods=['POST'])
-async def generate():
-    data = request.json
-    result = await engine.generate(data['prompt'])
-    return result
-```
-
-### 3. Set Up Monitoring
-
-```python
-# Enable metrics collection
-engine = NarrativeEngine(enable_metrics=True)
-
-# Monitor performance
-result = await engine.generate(prompt)
-print(f"Generation time: {result['generation_time']:.2f}s")
-print(f"Cost: ${result['cost']:.4f}")
-```
-
-### 4. Run Tests
+List/select a model through the provider's own dashboard or documentation, then pass its exact ID:
 
 ```bash
-# Install test dependencies
-pip install -e ".[test]"
-
-# Run tests
-pytest tests/
-
-# Run with coverage
-pytest --cov=helix_narrative_engine tests/
+helix-narrative generate --prompt-file brief.txt --model YOUR_MODEL_ID
 ```
 
-### 5. Join the Community
+Model aliases, access, prices, and retirement dates are provider-controlled and can change after this
+package release.
 
-- [GitHub Discussions](https://github.com/Deathcharge/helix-narrative-engine/discussions)
-- [Report Issues](https://github.com/Deathcharge/helix-narrative-engine/issues)
-- [Contributing Guide](../CONTRIBUTING.md)
+### The request times out
 
----
+The default timeout is 90 seconds per stage. First try `quick`. If the provider normally needs longer,
+set a deliberate cap up to 600 seconds:
 
-## Resources
+```bash
+helix-narrative generate --prompt-file brief.txt --preset quick --timeout 180
+```
 
-- **GitHub Repository**: https://github.com/Deathcharge/helix-narrative-engine
-- **API Reference**: [API_REFERENCE.md](API_REFERENCE.md)
-- **Best Practices**: [BEST_PRACTICES.md](BEST_PRACTICES.md)
-- **Architecture**: [ARCHITECTURE.md](ARCHITECTURE.md)
-- **Troubleshooting**: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+Increasing a timeout can also increase the time before a failed paid request is noticed. Built-in
+adapters disable automatic SDK retries so the plan's call count remains the actual request ceiling.
+Retry a failed run explicitly after checking provider status and account usage.
 
----
+### Cost is unclear
 
-**Last Updated**: April 2026  
-**Version**: 1.0.0  
-**Author**: Manus AI
+Use `plan` first, check current provider pricing, inspect reported usage in `run.json`, and enforce
+provider-account budgets. The package does not freeze volatile price tables. The Python result method
+`estimated_cost()` accepts current input/output prices per million tokens.
