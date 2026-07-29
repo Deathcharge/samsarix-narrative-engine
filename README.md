@@ -1,12 +1,12 @@
-# Helix Narrative Engine
+# Samsarix Narrative Engine
 
-Helix Narrative Engine is a Python SDK and command-line tool for turning one creative brief into a
+Samsarix Narrative Engine is a Python SDK and command-line tool for turning one creative brief into a
 complete short-story draft through a deterministic sequence of editorial stages. It is for developers
 and technically comfortable writers who want inspectable intermediate artifacts and a known ceiling on
 provider calls before spending API credits.
 
 Current maturity: **0.1 release candidate**. The local package, deterministic workflow, and provider
-contracts are tested. Publishing and owner-funded live-provider smoke tests are still external release
+contracts are tested. Publishing and Samsarix-funded live-provider smoke tests are still external release
 gates; no PyPI release or hosted service is claimed.
 
 ## Why this exists
@@ -14,7 +14,7 @@ gates; no PyPI release or hosted service is claimed.
 General agent frameworks already solve open-ended delegation. Narrative Engine does something narrower:
 
 - `quick`, `balanced`, and `polished` plans always run known stages in a known order;
-- `helix-narrative plan` shows the exact maximum call count and requested output-token total without a
+- `samsarix-narrative plan` shows the exact maximum call count and requested output-token total without a
   key;
 - one explicitly selected provider is enough for a run, with no surprise fallback spending;
 - the result contains the blueprint, editorial notes, draft/revision, model IDs, durations, caps, and
@@ -42,20 +42,20 @@ python -m pip install -e ".[openai]"
 Inspect the default workflow without credentials:
 
 ```bash
-helix-narrative plan --preset balanced
+samsarix-narrative plan --preset balanced
 ```
 
 Set one key in your shell—do not put it in source code—and generate a story:
 
 ```powershell
 $env:OPENAI_API_KEY = "your-key"
-helix-narrative generate --prompt "A lighthouse receives a reply from the future." --preset balanced --output story.md --artifacts story.json
+samsarix-narrative generate --prompt "A lighthouse receives a reply from the future." --preset balanced --output story.md --artifacts story.json
 ```
 
 On macOS/Linux, use `export OPENAI_API_KEY="your-key"`. The CLI refuses to replace either output file
 unless `--force` is present, and it performs that check before creating a provider or making a paid call.
 
-No PyPI publication is asserted. Source installation is the supported evaluation path until the owner
+No PyPI publication is asserted. Source installation is the supported evaluation path until Samsarix LLC
 publishes a signed release.
 
 ## Providers and configuration
@@ -69,7 +69,7 @@ Provider SDKs are optional. Install only what a deployment uses:
 | `xai` | `.[openai]` | `XAI_API_KEY` | `grok-4.5` |
 | `perplexity` | `.[openai]` | `PERPLEXITY_API_KEY` (or legacy `SONAR_API_KEY`) | `sonar-pro` |
 
-Override a model with `--model MODEL_ID` or `HELIX_MODEL`. Set `HELIX_PROVIDER` to change the CLI
+Override a model with `--model MODEL_ID` or `SAMSARIX_MODEL`. Set `SAMSARIX_PROVIDER` to change the CLI
 default. `.env.example` documents variable names, but the package does not automatically read `.env`
 files or retain keys itself. Account/model access still depends on the selected provider.
 
@@ -80,10 +80,10 @@ does not silently route between them.
 ## CLI workflow
 
 ```text
-helix-narrative --help
-helix-narrative --version
-helix-narrative plan --preset polished --json
-helix-narrative generate --prompt-file brief.txt --provider anthropic --preset quick
+samsarix-narrative --help
+samsarix-narrative --version
+samsarix-narrative plan --preset polished --json
+samsarix-narrative generate --prompt-file brief.txt --provider anthropic --preset quick
 ```
 
 `--prompt-file -` reads UTF-8 text from standard input. Without `--output`, the story is written to
@@ -101,14 +101,14 @@ Meaningful exits are:
 | `4` | Unsafe or failed output operation |
 | `130` | User cancellation |
 
-Use `helix-narrative generate --help` for all bounds and output options.
+Use `samsarix-narrative generate --help` for all bounds and output options.
 
 ## Python API
 
 ```python
 import asyncio
 
-from helix_narrative_engine import GenerationOptions, NarrativeEngine, OpenAIProvider
+from samsarix_narrative_engine import GenerationOptions, NarrativeEngine, OpenAIProvider
 
 
 async def main() -> None:
@@ -132,7 +132,7 @@ Custom providers implement one small async protocol:
 ```python
 from collections.abc import Sequence
 
-from helix_narrative_engine import Message, ProviderResponse
+from samsarix_narrative_engine import Message, ProviderResponse
 
 
 class MyProvider:
@@ -181,7 +181,7 @@ Run the release checks:
 ```bash
 python -m ruff format --check .
 python -m ruff check .
-python -m mypy helix_narrative_engine
+python -m mypy samsarix_narrative_engine
 python -m pytest
 python -m pip_audit
 python -m build
@@ -189,7 +189,7 @@ python -m twine check dist/*
 ```
 
 Tests use deterministic injected clients and do not spend API credits. Live-provider smoke tests require
-owner credentials and budget approval. CI checks the supported Python endpoints on Windows and Linux,
+Samsarix credentials and budget approval. CI checks the supported Python endpoints on Windows and Linux,
 plus Python 3.12 on Linux. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow.
 
 ## Architecture
@@ -200,7 +200,7 @@ plus Python 3.12 on Linux. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workfl
 - `models.py` contains immutable, serializable plans, usage, stages, and results.
 - `cli.py` handles non-interactive input, status separation, exit codes, and atomic persistence.
 
-There is no hidden persistence, cache, telemetry, background worker, or Helix service dependency.
+There is no hidden persistence, cache, telemetry, background worker, or Samsarix service dependency.
 
 ## Security, privacy, and output limitations
 
@@ -216,16 +216,20 @@ There is no hidden persistence, cache, telemetry, background worker, or Helix se
 - Generated text can be wrong, biased, derivative, or unsuitable. The editorial review is not factual
   verification, legal clearance, or an ethical/safety certification.
 
-Report security issues using [SECURITY.md](SECURITY.md). The threat boundaries and remaining owner gates
+Report security issues using [SECURITY.md](SECURITY.md). The threat boundaries and remaining release gates
 are tracked in [PRODUCTIZATION.md](docs/PRODUCTIZATION.md).
 
-## Project status and license
+## Project status, license, and trademarks
 
-Package metadata uses the custom expression `LicenseRef-Helix-BSL-1.1` to match the owner's latest
-license commit without claiming the modified text is the standard SPDX BSL. The existing
-[LICENSE](LICENSE) text currently names a different Licensed Work (“Helix Licensing System”) and includes
-commercial-use terms that require owner/legal confirmation before publication. This repository does not
-reinterpret or replace those terms. See `docs/PRODUCTIZATION.md` for the exact release gate.
+Copyright © 2026 Samsarix LLC and contributors. The source is licensed under the standard
+[Mozilla Public License 2.0](LICENSE). Modified MPL-covered files must remain available under MPL-2.0
+when distributed, while larger proprietary works may use the package under their own terms. See
+[LICENSING.md](LICENSING.md) and [NOTICE](NOTICE) for practical attribution details.
+
+The software license does not grant permission to use the Samsarix names, logos, or product branding
+except as needed for accurate attribution. See [TRADEMARKS.md](TRADEMARKS.md). Questions may be sent to
+[contact@samsarix.com](mailto:contact@samsarix.com); support and private security reports may be sent to
+[support@samsarix.com](mailto:support@samsarix.com).
 
 Contributions are welcome under [CONTRIBUTING.md](CONTRIBUTING.md) and the
 [Code of Conduct](CODE_OF_CONDUCT.md). No hosted support SLA, public package release, or production-ready

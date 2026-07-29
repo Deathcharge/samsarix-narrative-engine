@@ -1,9 +1,12 @@
+# Copyright 2026 Samsarix LLC and contributors.
+# SPDX-License-Identifier: MPL-2.0
+
 """Offline provider-contract demonstration; this does not perform AI generation."""
 
 import asyncio
 from collections.abc import Sequence
 
-from helix_narrative_engine import (
+from samsarix_narrative_engine import (
     GenerationOptions,
     Message,
     NarrativeEngine,

@@ -1,3 +1,6 @@
+# Copyright 2026 Samsarix LLC and contributors.
+# SPDX-License-Identifier: MPL-2.0
+
 """Public package shape and model behavior tests."""
 
 from __future__ import annotations
@@ -7,15 +10,15 @@ from pathlib import Path
 
 import pytest
 
-import helix_narrative_engine as helix
-from helix_narrative_engine.models import NarrativeResult, StageResult, TokenUsage
+import samsarix_narrative_engine as samsarix
+from samsarix_narrative_engine.models import NarrativeResult, StageResult, TokenUsage
 
 
 def test_public_api_version_and_exports() -> None:
-    assert helix.__version__ == "0.1.0"
-    assert "NarrativeEngine" in helix.__all__
-    assert "OpenAIProvider" in helix.__all__
-    assert Path(helix.__file__).with_name("py.typed").is_file()
+    assert samsarix.__version__ == "0.1.0"
+    assert "NarrativeEngine" in samsarix.__all__
+    assert "OpenAIProvider" in samsarix.__all__
+    assert Path(samsarix.__file__).with_name("py.typed").is_file()
 
 
 def test_token_usage_addition_and_validation() -> None:

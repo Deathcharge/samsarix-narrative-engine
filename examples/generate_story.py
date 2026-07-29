@@ -1,8 +1,11 @@
+# Copyright 2026 Samsarix LLC and contributors.
+# SPDX-License-Identifier: MPL-2.0
+
 """Generate a story with one explicitly configured OpenAI provider."""
 
 import asyncio
 
-from helix_narrative_engine import GenerationOptions, NarrativeEngine, OpenAIProvider
+from samsarix_narrative_engine import GenerationOptions, NarrativeEngine, OpenAIProvider
 
 
 async def main() -> None:

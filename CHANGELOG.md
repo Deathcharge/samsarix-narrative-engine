@@ -10,7 +10,7 @@ published.
 - Typed, dependency-free narrative workflow core with injectable providers.
 - Bounded `quick`, `balanced`, and `polished` generation plans.
 - Optional OpenAI Responses, Anthropic Messages, xAI, and Perplexity adapters.
-- `helix-narrative` plan and generate CLI with atomic output and artifact persistence.
+- `samsarix-narrative` plan and generate CLI with atomic output and artifact persistence.
 - Production-path tests, strict typing, formatting/linting, package verification, and CI.
 
 ### Changed
@@ -21,6 +21,10 @@ published.
   provider-reported usage.
 - Disabled automatic SDK retries so advertised call ceilings are not silently multiplied.
 - Closed the output preflight race with atomic no-clobber publication unless `--force` is explicit.
+- Adopted the Samsarix LLC identity across the distribution, Python namespace, CLI, configuration, and
+  support contacts.
+- Replaced the customized BSL text with the standard MPL-2.0 license, copyright notice, and trademark
+  guidance.
 
 ### Removed
 

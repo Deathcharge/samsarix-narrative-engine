@@ -3,19 +3,21 @@ requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "helix-narrative-engine"
+name = "samsarix-narrative-engine"
 version = "0.1.0"
 description = "Inspectable, cost-bounded narrative workflows for Python"
 readme = "README.md"
 requires-python = ">=3.10"
-license = "LicenseRef-Helix-BSL-1.1"
-license-files = ["LICENSE"]
-authors = [{ name = "Helix Collective" }]
+license = "MPL-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Samsarix LLC", email = "contact@samsarix.com" }]
+maintainers = [{ name = "Samsarix LLC", email = "support@samsarix.com" }]
 keywords = [
     "creative-writing",
     "narrative",
     "storytelling",
     "llm",
+    "samsarix",
     "workflow",
 ]
 classifiers = [
@@ -48,19 +50,19 @@ dev = [
 ]
 
 [project.scripts]
-helix-narrative = "helix_narrative_engine.cli:main"
+samsarix-narrative = "samsarix_narrative_engine.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/Deathcharge/helix-narrative-engine"
-Documentation = "https://github.com/Deathcharge/helix-narrative-engine#readme"
-Repository = "https://github.com/Deathcharge/helix-narrative-engine.git"
-Issues = "https://github.com/Deathcharge/helix-narrative-engine/issues"
+Homepage = "https://samsarix.com"
+Documentation = "https://github.com/Deathcharge/samsarix-narrative-engine#readme"
+Repository = "https://github.com/Deathcharge/samsarix-narrative-engine.git"
+Issues = "https://github.com/Deathcharge/samsarix-narrative-engine/issues"
 
 [tool.setuptools.packages.find]
-include = ["helix_narrative_engine*"]
+include = ["samsarix_narrative_engine*"]
 
 [tool.setuptools.package-data]
-helix_narrative_engine = ["py.typed"]
+samsarix_narrative_engine = ["py.typed"]
 
 [tool.ruff]
 target-version = "py310"
@@ -88,7 +90,7 @@ addopts = [
     "-ra",
     "--strict-config",
     "--strict-markers",
-    "--cov=helix_narrative_engine",
+    "--cov=samsarix_narrative_engine",
     "--cov-branch",
     "--cov-report=term-missing",
     "--cov-fail-under=90",
@@ -100,8 +102,8 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["helix_narrative_engine"]
-omit = ["helix_narrative_engine/__main__.py"]
+source = ["samsarix_narrative_engine"]
+omit = ["samsarix_narrative_engine/__main__.py"]
 
 [tool.coverage.report]
 exclude_also = [

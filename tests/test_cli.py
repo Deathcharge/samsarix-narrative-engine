@@ -1,3 +1,6 @@
+# Copyright 2026 Samsarix LLC and contributors.
+# SPDX-License-Identifier: MPL-2.0
+
 """Command-level tests for help, planning, generation, and safe persistence."""
 
 from __future__ import annotations
@@ -9,8 +12,8 @@ from typing import Any
 
 import pytest
 
-from helix_narrative_engine.cli import main
-from helix_narrative_engine.exceptions import ProviderError
+from samsarix_narrative_engine.cli import main
+from samsarix_narrative_engine.exceptions import ProviderError
 
 from .conftest import ScriptedProvider
 
@@ -31,7 +34,9 @@ def test_cli_help_and_version(capsys: pytest.CaptureFixture[str]) -> None:
     with pytest.raises(SystemExit) as version_exit:
         main(("--version",))
     assert version_exit.value.code == 0
-    assert "0.1.0" in capsys.readouterr().out
+    version_output = capsys.readouterr().out
+    assert "samsarix-narrative" in version_output
+    assert "0.1.0" in version_output
 
 
 def test_cli_plan_needs_no_provider(capsys: pytest.CaptureFixture[str]) -> None:
@@ -84,7 +89,7 @@ def test_cli_generate_can_read_stdin_and_write_story_to_stdout(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     provider = ScriptedProvider(("Blueprint", "# Standard Output\nBody"))
-    monkeypatch.setattr("helix_narrative_engine.cli.sys.stdin", io.StringIO("Prompt from stdin"))
+    monkeypatch.setattr("samsarix_narrative_engine.cli.sys.stdin", io.StringIO("Prompt from stdin"))
     assert (
         main(
             ("generate", "--prompt-file", "-", "--preset", "quick"),

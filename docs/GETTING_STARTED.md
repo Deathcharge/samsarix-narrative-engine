@@ -1,11 +1,11 @@
 # Getting started
 
 This guide takes a new user from a source checkout to one inspectable narrative run. It does not assume
-a published PyPI package or any private Helix infrastructure.
+a published PyPI package or any private Samsarix infrastructure.
 
 ## 1. Create an isolated environment
 
-Helix Narrative Engine supports Python 3.10–3.14. Python 3.9 is intentionally unsupported because its
+Samsarix Narrative Engine supports Python 3.10–3.14. Python 3.9 is intentionally unsupported because its
 official security support ended in October 2025.
 
 ```bash
@@ -38,7 +38,7 @@ base package has no runtime dependencies and is sufficient for custom provider i
 The plan command needs no API key and makes no network request:
 
 ```bash
-helix-narrative plan --preset balanced
+samsarix-narrative plan --preset balanced
 ```
 
 Expected structure:
@@ -85,7 +85,7 @@ solving the map requires trusting a former rival. Avoid a chosen-one reveal.
 Run:
 
 ```bash
-helix-narrative generate --prompt-file brief.txt --preset balanced --output story.md --artifacts run.json
+samsarix-narrative generate --prompt-file brief.txt --preset balanced --output story.md --artifacts run.json
 ```
 
 `story.md` contains only the final model output. `run.json` contains the final story plus every stage,
@@ -114,7 +114,7 @@ review.
 ```python
 import asyncio
 
-from helix_narrative_engine import GenerationOptions, NarrativeEngine, OpenAIProvider
+from samsarix_narrative_engine import GenerationOptions, NarrativeEngine, OpenAIProvider
 
 
 async def main() -> None:
@@ -135,12 +135,12 @@ Read [API_REFERENCE.md](API_REFERENCE.md) for the full supported surface.
 
 ## Troubleshooting
 
-### `helix-narrative` is not found
+### `samsarix-narrative` is not found
 
 Confirm the virtual environment is active and the editable install succeeded:
 
 ```bash
-python -m helix_narrative_engine --version
+python -m samsarix_narrative_engine --version
 ```
 
 The module form and console command expose the same CLI.
@@ -150,7 +150,7 @@ The module form and console command expose the same CLI.
 List/select a model through the provider's own dashboard or documentation, then pass its exact ID:
 
 ```bash
-helix-narrative generate --prompt-file brief.txt --model YOUR_MODEL_ID
+samsarix-narrative generate --prompt-file brief.txt --model YOUR_MODEL_ID
 ```
 
 Model aliases, access, prices, and retirement dates are provider-controlled and can change after this
@@ -162,7 +162,7 @@ The default timeout is 90 seconds per stage. First try `quick`. If the provider 
 set a deliberate cap up to 600 seconds:
 
 ```bash
-helix-narrative generate --prompt-file brief.txt --preset quick --timeout 180
+samsarix-narrative generate --prompt-file brief.txt --preset quick --timeout 180
 ```
 
 Increasing a timeout can also increase the time before a failed paid request is noticed. Built-in

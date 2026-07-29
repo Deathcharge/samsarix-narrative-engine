@@ -1,3 +1,6 @@
+# Copyright 2026 Samsarix LLC and contributors.
+# SPDX-License-Identifier: MPL-2.0
+
 """Command-line interface for planning and running narrative workflows."""
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ ProviderFactory = Callable[..., Provider]
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="helix-narrative",
+        prog="samsarix-narrative",
         description="Run inspectable, cost-bounded narrative workflows.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
@@ -54,11 +57,11 @@ def _build_parser() -> argparse.ArgumentParser:
     generate_parser.add_argument(
         "--provider",
         choices=("openai", "anthropic", "xai", "perplexity"),
-        default=os.getenv("HELIX_PROVIDER", "openai"),
+        default=os.getenv("SAMSARIX_PROVIDER", "openai"),
     )
     generate_parser.add_argument(
         "--model",
-        default=os.getenv("HELIX_MODEL"),
+        default=os.getenv("SAMSARIX_MODEL"),
         help="provider model ID; defaults to a documented stable model",
     )
     generate_parser.add_argument("--output", type=Path, help="write final Markdown story here")

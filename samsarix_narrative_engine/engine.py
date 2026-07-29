@@ -1,3 +1,6 @@
+# Copyright 2026 Samsarix LLC and contributors.
+# SPDX-License-Identifier: MPL-2.0
+
 """Deterministic, inspectable narrative workflow orchestration."""
 
 from __future__ import annotations

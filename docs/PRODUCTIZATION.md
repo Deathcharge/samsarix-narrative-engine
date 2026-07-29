@@ -34,7 +34,7 @@ release branches existed. Productization work is isolated on `codex/productize-n
 
 ## Chosen product
 
-Helix Narrative Engine is a small Python SDK and CLI for deterministic, inspectable,
+Samsarix Narrative Engine is a small Python SDK and CLI for deterministic, inspectable,
 cost-bounded narrative-development workflows. A developer or technically comfortable writer supplies
 one creative brief and one explicitly configured text-model provider. The engine runs a named sequence
 of editorial stages and returns both a complete Markdown story and the intermediate artifacts with
@@ -43,13 +43,13 @@ provider-reported usage.
 The primary journey is:
 
 1. Install the package with one provider extra.
-2. Run `helix-narrative plan` without credentials to inspect the exact call and output-token ceiling.
-3. set one provider key and run `helix-narrative generate` with a prompt or UTF-8 prompt file;
+2. Run `samsarix-narrative plan` without credentials to inspect the exact call and output-token ceiling.
+3. set one provider key and run `samsarix-narrative generate` with a prompt or UTF-8 prompt file;
 4. receive a final story and, optionally, a JSON artifact record that identifies every provider call,
    model, duration, cap, and reported token count.
 
 This is independently useful as a focused orchestration component and reference implementation. It
-does not reproduce `helix-unified`, require a private Helix service, or compete with general-purpose
+does not reproduce a broader private platform, require a private Samsarix service, or compete with general-purpose
 agent frameworks.
 
 ## Target user and use case
@@ -93,14 +93,20 @@ product better than adding CrewAI, LangGraph, or the OpenAI Agents SDK. Referenc
 - [pytest configuration](https://docs.pytest.org/en/stable/reference/customize.html)
 - [OpenAI Responses API](https://platform.openai.com/docs/api-reference/responses-streaming)
 - [Anthropic Python SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/python)
+- [Mozilla Public License 2.0](https://www.mozilla.org/en-US/MPL/2.0/)
+- [Mozilla MPL 2.0 FAQ](https://www.mozilla.org/en-US/MPL/2.0/FAQ/)
 
-## Assumptions
+## Assumptions and subsequent owner decisions
 
-- The later owner-authored BSL commit is the strongest available evidence of license intent, so
-  technical metadata uses a custom `LicenseRef` rather than silently reverting to Apache/MIT or
-  claiming the modified text is the canonical SPDX BSL.
-- No PyPI project exists for `helix-narrative-engine` as of the audit (the PyPI JSON endpoint returned
-  404), so publication compatibility is not constrained by a known public artifact.
+- On 2026-07-28, the owner identified the company as Samsarix LLC, supplied working company contacts,
+  and directed a complete rebrand from Helix to Samsarix. The unpublished package, import namespace,
+  CLI, configuration variables, metadata, documentation, and notices now use Samsarix.
+- The owner requested a clearer license that protects credit and the work. The customized BSL was
+  replaced with unmodified MPL-2.0: file-level copyleft preserves distributed modifications and
+  notices while allowing the SDK in larger proprietary works. `NOTICE`, source SPDX headers, and a
+  separate trademark policy identify Samsarix LLC without modifying the standard license.
+- No PyPI project exists for `samsarix-narrative-engine` as of the rebrand audit (the PyPI JSON endpoint
+  returned 404), so publication compatibility is not constrained by a known public artifact.
 - Story prompts and generated content may be private. Local files are opt-in, and provider data
   handling remains governed by the provider/account selected by the user.
 - Provider model availability and pricing change. Defaults use current stable IDs, users can override
@@ -174,7 +180,7 @@ final verification therefore uses the isolated project environment and fresh whe
 
 - Base editable and wheel installs work without provider SDKs.
 - Each documented provider extra installs independently.
-- `helix-narrative --help`, `--version`, and `plan` work without credentials.
+- `samsarix-narrative --help`, `--version`, and `plan` work without credentials.
 - A deterministic fake-provider integration test completes each advertised preset.
 - CLI output refusal occurs before any provider call, and `--force` replaces only named files.
 - Empty, oversized, timed-out, failed-provider, empty-provider-response, and over-budget cases have
@@ -192,15 +198,19 @@ final verification therefore uses the isolated project environment and fresh whe
 - Added explicit optional OpenAI Responses, Anthropic Messages, and OpenAI-compatible adapters with
   bounded SDK timeouts, automatic retries disabled, and sanitized errors.
 - Added deterministic quick/balanced/polished workflows and removed unbounded custom multiplicity.
-- Added the `helix-narrative` CLI with dry planning, UTF-8 input, overwrite preflight, atomic writes,
+- Added the `samsarix-narrative` CLI with dry planning, UTF-8 input, overwrite preflight, atomic writes,
   provider accounting, and meaningful exits.
 - Removed the unpackageable duplicate advanced-features module and fake metrics from the public path.
-- Replaced 48 mock-only tests with 65 production-path tests covering plans, presets, bounds, adapters,
+- Replaced 48 mock-only tests with 66 production-path tests covering plans, presets, bounds, adapters,
   failure sanitation, CLI behavior, public exports, and an output-creation race.
 - Consolidated packaging and tooling in `pyproject.toml`, added a reproducible `uv.lock`, and configured
   least-privilege CI plus weekly dependency and Actions updates.
 - Built and inspected the universal wheel and source distribution, including clean wheel-only and
   independent OpenAI/Anthropic-extra environments.
+- Rebranded the unpublished distribution, import namespace, CLI, configuration variables, company
+  identity, and contacts to Samsarix without carrying a misleading compatibility alias.
+- Replaced the customized BSL with standard MPL-2.0, Samsarix LLC copyright/SPDX notices, redistribution
+  guidance, and an explicit trademark policy.
 
 ## Final local verification
 
@@ -208,11 +218,11 @@ Recorded on Windows 10 with Python 3.11.9 after the final implementation changes
 
 | Command/check | Actual result |
 | --- | --- |
-| `python -m ruff format --check .` | Exit 0; 26 files already formatted. |
+| `python -m ruff format --check .` | Exit 0; 28 files already formatted. |
 | `python -m ruff check .` | Exit 0; all checks passed. |
-| `python -m mypy helix_narrative_engine` | Exit 0; no issues in 8 source files. |
-| `python -m compileall -q helix_narrative_engine tests examples` | Exit 0. |
-| `python -m pytest` | Exit 0; 65 passed; 97.24% branch coverage (90% required). |
+| `python -m mypy samsarix_narrative_engine` | Exit 0; no issues in 8 source files. |
+| `python -m compileall -q samsarix_narrative_engine tests examples` | Exit 0. |
+| `python -m pytest` | Exit 0; 66 passed; 97.40% branch coverage (90% required). |
 | `python -m pip check` | Exit 0; no broken requirements. |
 | `uv lock --check` | Exit 0; 83 packages resolved. |
 | `python -m pip_audit --progress-spinner off` | Exit 0; no known vulnerabilities; the unpublished local package itself was skipped because it is not on PyPI. |
@@ -220,28 +230,27 @@ Recorded on Windows 10 with Python 3.11.9 after the final implementation changes
 | `python -m build` | Exit 0; built the 0.1.0 sdist and universal wheel from an isolated environment. |
 | `python -m twine check` | Exit 0; both artifacts passed. |
 | clean base wheel smoke | Exit 0; dependency check, package import, console version, and credential-free `quick` plan passed outside the source path. |
-| independent provider extras | Exit 0; OpenAI 2.49.0 and Anthropic 0.120.2 installed/imported independently and each environment passed `uv pip check`. |
+| independent provider extras | Exit 0; OpenAI 2.50.0 and Anthropic 0.120.2 installed/imported independently and each environment passed `uv pip check`. |
+| standard-license comparison | Exit 0; `LICENSE` is byte-for-byte identical to Mozilla's unmodified MPL-2.0 text. |
 | `git diff --check` | Exit 0. |
 
 The core has no runtime dependency. Installed metadata reports Apache-2.0 for the direct optional
 OpenAI SDK and MIT for the direct optional Anthropic SDK. The exact resolved dependency graph is locked;
-license counsel still needs to approve the project's customized BSL terms before publication.
+MPL-2.0 is a standard OSI-approved license; counsel should still confirm Samsarix LLC's ownership chain
+for code created before the company rebrand.
 
 Remote CI was configured but cannot be represented as executed until the branch is pushed and GitHub
-Actions runs it. Owner-funded live-provider calls were intentionally not made.
+Actions runs it. Samsarix-funded live-provider calls were intentionally not made.
 
 ## Deferred and blocked work
 
 Owner/legal decisions:
 
-- Confirm the license is intended to cover **Helix Narrative Engine**; `LICENSE` currently says the
-  Licensed Work is “Helix Licensing System.”
-- Confirm the customized production-use threshold, the June 16, 2027 change date, the commercial
-  licensing email, and the pricing URL. No technical release should represent those terms as legally
-  reviewed.
+- Confirm that Samsarix LLC owns or has a written right to license all pre-company contributions under
+  MPL-2.0; the repository cannot establish a corporate copyright assignment by itself.
 - Decide whether and where to publish the package. PyPI publication, trusted-publisher configuration,
   signing, and release credentials are not created here.
-- Configure a private security-reporting channel and a real Code of Conduct contact.
+- Obtain counsel review before relying on copyright or trademark enforcement in a specific jurisdiction.
 
 No credentials, billing account, hosted endpoint, deployment, publication, or live infrastructure is
 required for local completion and none will be fabricated.
@@ -253,7 +262,7 @@ required for local completion and none will be fabricated.
 - Full artifact JSON contains generated content. Users must choose an appropriate storage location and
   retention policy.
 - Provider SDK/API/model behavior and pricing change independently of this package. Contract tests use
-  deterministic clients; owner-funded live smoke tests remain an external release gate for each
+  deterministic clients; Samsarix-funded live smoke tests remain an external release gate for each
   advertised adapter.
 - A bounded output-token request does not by itself cap provider input tokens. The fixed number of
   stages and bounded prior artifacts constrain amplification, but users must inspect current provider
@@ -261,9 +270,10 @@ required for local completion and none will be fabricated.
 
 ## Distribution and sustainability
 
-The simplest distribution is a signed source archive and universal Python wheel, then an owner-approved
+The simplest distribution is a signed source archive and universal Python wheel, then a Samsarix-approved
 PyPI publication using a trusted publisher. The repository should remain useful from source with no
-private dependencies. A plausible sustainability model is paid support, integration work, or commercial
-licensing under owner-confirmed terms. Running a hosted generation service or subscription is not
+private dependencies. A plausible sustainability model is paid support, integration work, or—only if
+Samsarix holds the necessary rights to every contribution—an alternative commercial license for customers
+that do not want to satisfy MPL obligations. Running a hosted generation service or subscription is not
 justified by this repository and would create privacy, abuse, authentication, and variable-cost burdens
 that the narrow package avoids.

@@ -1,3 +1,6 @@
+# Copyright 2026 Samsarix LLC and contributors.
+# SPDX-License-Identifier: MPL-2.0
+
 """Provider adapter contract and secret-safety tests."""
 
 from __future__ import annotations
@@ -8,7 +11,7 @@ from typing import Any, Optional
 
 import pytest
 
-from helix_narrative_engine import (
+from samsarix_narrative_engine import (
     AnthropicProvider,
     ConfigurationError,
     Message,
@@ -16,6 +19,7 @@ from helix_narrative_engine import (
     OpenAIProvider,
     ProviderError,
     build_provider,
+    provider_from_env,
 )
 
 
@@ -209,7 +213,7 @@ def test_build_provider_requires_explicit_supported_configuration(
         "XAI_API_KEY",
         "PERPLEXITY_API_KEY",
         "SONAR_API_KEY",
-        "HELIX_MODEL",
+        "SAMSARIX_MODEL",
     ):
         monkeypatch.delenv(name, raising=False)
 
@@ -223,3 +227,23 @@ def test_build_provider_requires_explicit_supported_configuration(
         build_provider("perplexity")
     with pytest.raises(ConfigurationError, match="unknown provider"):
         build_provider("other")
+
+
+def test_samsarix_environment_selects_provider_and_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    created: dict[str, Any] = {}
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs: Any) -> None:
+            created.update(kwargs)
+
+    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(AsyncOpenAI=FakeOpenAI))
+    monkeypatch.setenv("SAMSARIX_PROVIDER", "openai")
+    monkeypatch.setenv("SAMSARIX_MODEL", "samsarix-test-model")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    provider = provider_from_env(timeout_seconds=12)
+    assert isinstance(provider, OpenAIProvider)
+    assert provider.model == "samsarix-test-model"
+    assert created["timeout"] == 12

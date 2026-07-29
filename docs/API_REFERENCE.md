@@ -1,6 +1,6 @@
 # API reference
 
-The public API is exported from `helix_narrative_engine`. Everything else is an implementation detail
+The public API is exported from `samsarix_narrative_engine`. Everything else is an implementation detail
 unless documented here.
 
 ## Core workflow
@@ -22,7 +22,7 @@ Convenience equivalent to constructing `NarrativeEngine(provider)` for one run.
 ### `await generateNarrative(prompt, options=None, provider=None)`
 
 Compatibility alias for the original camel-case entry point. When `provider` is omitted it reads
-`HELIX_PROVIDER` (default `openai`) and associated environment configuration. New code should prefer the
+`SAMSARIX_PROVIDER` (default `openai`) and associated environment configuration. New code should prefer the
 explicit `generate_narrative` form.
 
 ## Options and plans
@@ -86,7 +86,7 @@ SDK fields; custom providers must not invent counts. Supports addition and `to_d
 from collections.abc import Sequence
 from typing import Protocol
 
-from helix_narrative_engine import Message, ProviderResponse
+from samsarix_narrative_engine import Message, ProviderResponse
 
 
 class Provider(Protocol):
@@ -112,7 +112,7 @@ output cap, avoid hidden retries, return only normalized text, and avoid logging
 - `OpenAICompatibleProvider(name, model, base_url, api_key, ...)` is an explicit Chat Completions
   adapter for approved compatible endpoints; it does not discover or trust arbitrary URLs.
 - `build_provider(name, ...)` supports CLI names `openai`, `anthropic`, `xai`, and `perplexity`.
-- `provider_from_env()` reads `HELIX_PROVIDER` and `HELIX_MODEL`.
+- `provider_from_env()` reads `SAMSARIX_PROVIDER` and `SAMSARIX_MODEL`.
 
 No built-in adapter silently fails over to another provider.
 

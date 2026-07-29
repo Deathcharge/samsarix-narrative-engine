@@ -34,7 +34,7 @@ jobs:
       - name: Lint
         run: python -m ruff check .
       - name: Type check
-        run: python -m mypy helix_narrative_engine
+        run: python -m mypy samsarix_narrative_engine
       - name: Test
         run: python -m pytest
       - name: Audit dependencies
@@ -61,5 +61,5 @@ jobs:
           python -m venv "$RUNNER_TEMP/wheel-check"
           "$RUNNER_TEMP/wheel-check/bin/python" -m pip install dist/*.whl
           cd "$RUNNER_TEMP"
-          "$RUNNER_TEMP/wheel-check/bin/helix-narrative" --version
-          "$RUNNER_TEMP/wheel-check/bin/helix-narrative" plan --preset balanced
+          "$RUNNER_TEMP/wheel-check/bin/samsarix-narrative" --version
+          "$RUNNER_TEMP/wheel-check/bin/samsarix-narrative" plan --preset balanced

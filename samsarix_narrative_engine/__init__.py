@@ -1,4 +1,7 @@
-"""Helix Narrative Engine public API."""
+# Copyright 2026 Samsarix LLC and contributors.
+# SPDX-License-Identifier: MPL-2.0
+
+"""Samsarix Narrative Engine public API."""
 
 from .agents import (
     AGENTS,

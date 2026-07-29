@@ -1,4 +1,7 @@
-"""Public exception hierarchy for Helix Narrative Engine."""
+# Copyright 2026 Samsarix LLC and contributors.
+# SPDX-License-Identifier: MPL-2.0
+
+"""Public exception hierarchy for Samsarix Narrative Engine."""
 
 
 class NarrativeEngineError(Exception):

@@ -7,13 +7,11 @@ supported-version table will be added when releases exist.
 
 ## Reporting a vulnerability
 
-Use GitHub's private vulnerability reporting for this repository if it is enabled. Do not place API
-keys, private prompts, generated private content, or exploit details in a public issue. If private
-reporting is unavailable, contact the repository owner through the private contact method published on
-their GitHub profile and include only enough non-sensitive information to establish contact.
-
-The owner still needs to configure and publish a dedicated security contact. That external release gate
-is tracked in `docs/PRODUCTIZATION.md`.
+Use GitHub's private vulnerability reporting for this repository if it is enabled, or email
+`support@samsarix.com` with the subject `SECURITY: Samsarix Narrative Engine`. Do not place API keys,
+private prompts, generated private content, or exploit details in a public issue. Start with the minimum
+non-sensitive information needed to establish contact; Samsarix LLC can arrange a safer exchange for
+supporting material.
 
 ## Scope and expectations
 

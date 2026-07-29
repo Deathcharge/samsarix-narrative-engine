@@ -1,3 +1,6 @@
+# Copyright 2026 Samsarix LLC and contributors.
+# SPDX-License-Identifier: MPL-2.0
+
 """Specialist stage definitions and bounded workflow presets."""
 
 from __future__ import annotations

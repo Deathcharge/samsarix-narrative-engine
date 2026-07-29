@@ -1,3 +1,6 @@
+# Copyright 2026 Samsarix LLC and contributors.
+# SPDX-License-Identifier: MPL-2.0
+
 """Provider protocol and bounded optional SDK adapters."""
 
 from __future__ import annotations
@@ -79,7 +82,7 @@ class OpenAIProvider:
         except ImportError as error:
             raise ConfigurationError(
                 "OpenAI support is optional; install with "
-                'pip install "helix-narrative-engine[openai]"'
+                'pip install "samsarix-narrative-engine[openai]"'
             ) from error
         self._client = AsyncOpenAI(
             api_key=key,
@@ -145,7 +148,7 @@ class AnthropicProvider:
         except ImportError as error:
             raise ConfigurationError(
                 "Anthropic support is optional; install with "
-                'pip install "helix-narrative-engine[anthropic]"'
+                'pip install "samsarix-narrative-engine[anthropic]"'
             ) from error
         self._client = AsyncAnthropic(
             api_key=key,
@@ -222,7 +225,7 @@ class OpenAICompatibleProvider:
             from openai import AsyncOpenAI
         except ImportError as error:
             raise ConfigurationError(
-                'OpenAI-compatible support requires pip install "helix-narrative-engine[openai]"'
+                'OpenAI-compatible support requires pip install "samsarix-narrative-engine[openai]"'
             ) from error
         self._client = AsyncOpenAI(
             api_key=api_key.strip(),
@@ -276,7 +279,7 @@ def build_provider(
     """Build a supported provider exclusively from explicit names and environment keys."""
 
     normalized = name.strip().lower()
-    selected_model = model or os.getenv("HELIX_MODEL")
+    selected_model = model or os.getenv("SAMSARIX_MODEL")
     if normalized == "openai":
         return OpenAIProvider(
             model=selected_model or "gpt-5-mini",
@@ -308,9 +311,9 @@ def build_provider(
 
 
 def provider_from_env(*, timeout_seconds: float = 90.0) -> Provider:
-    """Build a provider from ``HELIX_PROVIDER`` (defaults to ``openai``)."""
+    """Build a provider from ``SAMSARIX_PROVIDER`` (defaults to ``openai``)."""
 
     return build_provider(
-        os.getenv("HELIX_PROVIDER", "openai"),
+        os.getenv("SAMSARIX_PROVIDER", "openai"),
         timeout_seconds=timeout_seconds,
     )

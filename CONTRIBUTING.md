@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for improving Helix Narrative Engine. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md)
+Thank you for improving Samsarix Narrative Engine. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md)
 and keep changes focused on the repository's narrow package/CLI product.
 
 ## Development setup
@@ -21,8 +21,8 @@ python -m pip install -e ".[dev,openai,anthropic]"
 No API key is needed for the test suite. Confirm the local interface:
 
 ```bash
-helix-narrative --version
-helix-narrative plan --preset balanced
+samsarix-narrative --version
+samsarix-narrative plan --preset balanced
 ```
 
 ## Working agreement
@@ -47,7 +47,7 @@ Run these from the repository root:
 ```bash
 python -m ruff format --check .
 python -m ruff check .
-python -m mypy helix_narrative_engine
+python -m mypy samsarix_narrative_engine
 python -m pytest
 python -m pip_audit
 python -m build
@@ -89,8 +89,10 @@ providers; do not add sleep-based tests except tightly bounded timeout behavior.
 ## Pull requests
 
 Explain the user problem, the product decision, commands run with actual outcomes, new risks, and any
-owner/external gate. Keep commits logically separated (for example core, tests, documentation, CI) and
+company/external gate. Keep commits logically separated (for example core, tests, documentation, CI) and
 do not mix generated build/coverage artifacts into commits.
 
-License, trademark, pricing, security-contact, publication, and production-infrastructure decisions
-require owner approval. Do not infer or rewrite them in a contribution.
+Contributions are accepted under MPL-2.0 and must preserve applicable license and copyright notices.
+License, trademark, pricing, publication, and production-infrastructure decisions require Samsarix LLC
+approval. Do not infer or rewrite them in a contribution. Contact `contact@samsarix.com` when a change
+needs a company decision.

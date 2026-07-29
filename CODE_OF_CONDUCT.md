@@ -23,9 +23,9 @@ server, event, or other community space that the repository does not operate.
 
 ## Reporting and enforcement
 
-Use the repository owner's private GitHub contact or private vulnerability-reporting channel. Do not
-post personal information or sensitive evidence in a public issue. A dedicated conduct contact is not
-yet configured and remains an owner-controlled release gate in `docs/PRODUCTIZATION.md`.
+Email `support@samsarix.com` with the subject `CONDUCT: Samsarix Narrative Engine`. Do not post personal
+information or sensitive evidence in a public issue. Start with the minimum information needed to
+establish contact; Samsarix LLC can arrange a safer exchange for supporting material.
 
 Maintainers may remove content, warn or temporarily restrict participants, or permanently exclude a
 participant when needed to protect the community. Reports should be handled privately, consistently,

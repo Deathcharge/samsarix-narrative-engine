@@ -1,10 +1,13 @@
+# Copyright 2026 Samsarix LLC and contributors.
+# SPDX-License-Identifier: MPL-2.0
+
 """Agent registry and plan tests."""
 
 from __future__ import annotations
 
 import pytest
 
-from helix_narrative_engine.agents import (
+from samsarix_narrative_engine.agents import (
     AGENTS,
     PRESETS,
     applyPresetMode,
