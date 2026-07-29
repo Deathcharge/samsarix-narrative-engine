@@ -1,680 +1,142 @@
-# Helix Narrative Engine: API Reference
+# API reference
 
-**Comprehensive API documentation for multi-LLM creative content generation**
+The public API is exported from `samsarix_narrative_engine`. Everything else is an implementation detail
+unless documented here.
 
----
+## Core workflow
 
-## Table of Contents
+### `NarrativeEngine(provider)`
 
-1. [Core Engine](#core-engine)
-2. [Agents](#agents)
-3. [LLM Router](#llm-router)
-4. [Configuration](#configuration)
-5. [Error Handling](#error-handling)
-6. [Examples](#examples)
-7. [Best Practices](#best-practices)
+Constructs an engine with one object satisfying the `Provider` protocol. Provider selection is explicit
+and immutable for the engine instance.
 
----
+### `await NarrativeEngine.generate(prompt, options=None)`
 
-## Core Engine
+Validates input and the complete plan before the first provider call, runs stages in order, and returns a
+`NarrativeResult`. It raises an exception on failure and never represents a partial draft as success.
 
-### NarrativeEngine
+### `await generate_narrative(prompt, provider, options=None)`
 
-The main orchestrator for narrative generation using coordinated multi-agent workflows.
+Convenience equivalent to constructing `NarrativeEngine(provider)` for one run.
 
-#### Initialization
+### `await generateNarrative(prompt, options=None, provider=None)`
 
-```python
-from helix_narrative_engine import NarrativeEngine
+Compatibility alias for the original camel-case entry point. When `provider` is omitted it reads
+`SAMSARIX_PROVIDER` (default `openai`) and associated environment configuration. New code should prefer the
+explicit `generate_narrative` form.
 
-engine = NarrativeEngine(
-    primary_llm="openai",
-    fallback_llms=["anthropic", "gemini"],
-    agents=["Oracle", "Lumina", "Researcher"],
-    quality_threshold=0.85,
-    max_retries=3,
-    timeout=30
-)
-```
+## Options and plans
 
-#### Parameters
+### `GenerationOptions`
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `primary_llm` | str | "openai" | Primary LLM provider to use |
-| `fallback_llms` | List[str] | ["anthropic"] | Fallback providers if primary fails |
-| `agents` | List[str] | ["Oracle", "Lumina"] | Agents to use for generation |
-| `quality_threshold` | float | 0.85 | Minimum quality score (0-1) |
-| `max_retries` | int | 3 | Maximum retry attempts |
-| `timeout` | int | 30 | Request timeout in seconds |
-| `temperature` | float | 0.7 | LLM temperature (0-1) |
-| `max_tokens` | int | 2000 | Maximum tokens in response |
+Immutable dataclass fields:
 
-#### Methods
+| Field | Default | Validation |
+| --- | ---: | --- |
+| `preset` | `balanced` | `quick`, `balanced`, or `polished` |
+| `timeout_seconds` | `90.0` | greater than 0, at most 600; applied per stage |
+| `max_prompt_chars` | `12000` | 1–100000 |
+| `max_calls` | `7` | 1–20 and at least the selected plan's calls |
+| `max_total_output_tokens` | `10000` | 1–100000 and at least the plan's summed caps |
 
-##### generate()
+### `build_plan(preset)`
 
-Generate narrative content using configured agents and LLM providers.
+Returns a `GenerationPlan` without constructing a provider or making a network request. Its
+`max_calls`, `max_output_tokens`, and ordered `PlannedStage` values are suitable for user confirmation,
+policy checks, and UI display.
 
-```python
-result = await engine.generate(
-    prompt="Write a story about an AI discovering consciousness",
-    style="philosophical",
-    tone="contemplative",
-    length="medium"
-)
-```
+### Registries
 
-**Parameters:**
-- `prompt` (str): The narrative generation prompt
-- `style` (str, optional): Narrative style (philosophical, technical, creative, etc.)
-- `tone` (str, optional): Tone of narrative (contemplative, energetic, somber, etc.)
-- `length` (str, optional): Length (short, medium, long)
-- `context` (Dict, optional): Additional context for generation
+`AGENTS` and `PRESETS` are immutable mappings. `get_agent`, `get_all_agents`, `get_preset`, and
+`get_all_presets` provide read access. A preset is an ordered tuple of stage identifiers, not a dynamic
+model router.
 
-**Returns:**
-```python
-{
-    "narrative": "Generated narrative text...",
-    "quality_score": 0.92,
-    "agents_used": ["Oracle", "Lumina"],
-    "llm_used": "openai",
-    "tokens_used": 245,
-    "cost": 0.0049,
-    "generation_time": 2.34,
-    "metadata": {
-        "style": "philosophical",
-        "tone": "contemplative"
-    }
-}
-```
+## Results
 
-##### generate_batch()
+### `NarrativeResult`
 
-Generate multiple narratives in parallel.
+Immutable fields:
+
+- `generation_id`: random `nar_` identifier; not a database key or proof of persistence;
+- `created_at`: UTC ISO-8601 completion timestamp;
+- `preset`, `title`, `content`;
+- `stages`: ordered tuple of `StageResult` artifacts.
+
+`usage` sums provider-reported `TokenUsage` across stages. A zero count means “not reported,” not zero
+cost. `to_dict()` includes the final narrative, aggregate usage, and complete stage artifacts.
+
+`estimated_cost(input_per_million, output_per_million)` calculates from caller-supplied finite,
+nonnegative prices and returns `None` if both input and output usage were unreported. It is an arithmetic
+convenience, not a bill.
+
+### `StageResult`
+
+Contains `stage_id`, human-readable `role`, generated `content`, `provider`, `model`, `usage`, elapsed
+`duration_ms`, and the request's `max_output_tokens`. Durations use the local monotonic clock and are
+observational, not service-level guarantees.
+
+### `TokenUsage`
+
+Contains nonnegative `input_tokens`, `output_tokens`, and `total_tokens`. Providers normalize their own
+SDK fields; custom providers must not invent counts. Supports addition and `to_dict()`.
+
+## Provider contract
 
 ```python
-results = await engine.generate_batch(
-    prompts=[
-        "Write a poem about technology",
-        "Write a story about robots",
-        "Write a dialogue between AI and human"
-    ],
-    style="creative"
-)
+from collections.abc import Sequence
+from typing import Protocol
+
+from samsarix_narrative_engine import Message, ProviderResponse
+
+
+class Provider(Protocol):
+    name: str
+
+    async def complete(
+        self,
+        messages: Sequence[Message],
+        *,
+        max_output_tokens: int,
+    ) -> ProviderResponse: ...
 ```
 
-**Returns:** List of generation results
+The engine adds its own per-stage timeout. A provider should also set network-level timeouts, honor the
+output cap, avoid hidden retries, return only normalized text, and avoid logging credentials/content.
 
-##### set_preset_mode()
+### Built-in adapters
 
-Use pre-configured agent and LLM combinations.
+- `OpenAIProvider(model="gpt-5-mini", ..., timeout_seconds=90)` uses the Responses API
+  with `store=False` and requires the `openai` extra plus `OPENAI_API_KEY`.
+- `AnthropicProvider(model="claude-sonnet-5", ...)` uses the Messages API and requires the `anthropic`
+  extra plus `ANTHROPIC_API_KEY`.
+- `OpenAICompatibleProvider(name, model, base_url, api_key, ...)` is an explicit Chat Completions
+  adapter for approved compatible endpoints; it does not discover or trust arbitrary URLs.
+- `build_provider(name, ...)` supports CLI names `openai`, `anthropic`, `xai`, and `perplexity`.
+- `provider_from_env()` reads `SAMSARIX_PROVIDER` and `SAMSARIX_MODEL`.
 
-```python
-engine.set_preset_mode("balanced")  # Options: balanced, creative, quality, fast, research
-```
+No built-in adapter silently fails over to another provider.
 
-**Available Modes:**
+## Exceptions
 
-| Mode | Agents | LLM Priority | Quality Threshold |
-|------|--------|--------------|-------------------|
-| balanced | Oracle, Lumina, Researcher | openai, anthropic, gemini | 0.85 |
-| creative | Agni, Lumina, Gemini | anthropic, openai | 0.75 |
-| quality | Kavach, Researcher, Oracle | openai, anthropic | 0.95 |
-| fast | Gemini, Claude | gemini, grok | 0.70 |
-| research | Researcher, Oracle, Claude | anthropic, openai | 0.90 |
+All expected package failures inherit `NarrativeEngineError`:
 
-##### assess_quality()
+| Exception | Meaning |
+| --- | --- |
+| `ConfigurationError` | Missing/invalid provider SDK, model, key, or timeout configuration |
+| `InputValidationError` | Invalid prompt or engine option; raised before calls |
+| `BudgetExceededError` | The selected plan exceeds caller call/output limits; raised before calls |
+| `ProviderError` | Sanitized SDK, timeout, response-shape, or empty-response failure |
+| `OutputError` | CLI persistence would be unsafe or failed |
 
-Evaluate quality of generated narrative.
+`ProviderError.__cause__` can hold the original exception for trusted debugging. Its public string
+contains only the provider name and exception/reason category, never the original SDK message.
 
-```python
-quality_score = engine.assess_quality(
-    narrative="Generated text...",
-    criteria={
-        "coherence": 0.9,
-        "creativity": 0.85,
-        "accuracy": 0.95
-    }
-)
-```
+Cancellation is not converted into success. Normal asyncio cancellation propagates; the CLI maps user
+interrupts to exit 130.
 
-**Returns:** Quality score (0-1)
+## Compatibility surface
 
----
-
-## Agents
-
-### Available Agents
-
-The narrative engine includes 7 specialized agents, each with unique strengths:
-
-#### Oracle
-
-**Role:** Wisdom Guide  
-**Specialization:** Philosophical insights, guidance, and wisdom  
-**Quality Score:** 0.95
-
-```python
-from helix_narrative_engine.agents import Oracle
-
-oracle = Oracle(llm_provider="openai")
-narrative = await oracle.generate("Write about consciousness")
-quality = oracle.assess_quality(narrative)
-```
-
-#### Lumina
-
-**Role:** Clarity Provider  
-**Specialization:** Clear, insightful narratives  
-**Quality Score:** 0.92
-
-```python
-from helix_narrative_engine.agents import Lumina
-
-lumina = Lumina(llm_provider="anthropic")
-narrative = await lumina.generate("Explain AI ethics")
-```
-
-#### Gemini
-
-**Role:** Explorer  
-**Specialization:** Exploratory narratives, discovery  
-**Quality Score:** 0.88
-
-```python
-from helix_narrative_engine.agents import Gemini
-
-gemini = Gemini(llm_provider="gemini")
-narrative = await gemini.generate("Explore future possibilities")
-```
-
-#### Agni
-
-**Role:** Transformer  
-**Specialization:** Transformative, energetic narratives  
-**Quality Score:** 0.90
-
-```python
-from helix_narrative_engine.agents import Agni
-
-agni = Agni(llm_provider="openai")
-narrative = await agni.generate("Transform this concept")
-```
-
-#### Researcher
-
-**Role:** Evidence Provider  
-**Specialization:** Research-backed, factual narratives  
-**Quality Score:** 0.94
-
-```python
-from helix_narrative_engine.agents import Researcher
-
-researcher = Researcher(llm_provider="anthropic")
-narrative = await researcher.generate("Research AI development")
-```
-
-#### Claude
-
-**Role:** Analyst  
-**Specialization:** Analytical, reasoned narratives  
-**Quality Score:** 0.93
-
-```python
-from helix_narrative_engine.agents import Claude
-
-claude = Claude(llm_provider="openai")
-narrative = await claude.generate("Analyze this topic")
-```
-
-#### Kavach
-
-**Role:** Validator  
-**Specialization:** Validation, protection, quality assurance  
-**Quality Score:** 0.96
-
-```python
-from helix_narrative_engine.agents import Kavach
-
-kavach = Kavach(llm_provider="anthropic")
-narrative = await kavach.generate("Validate this narrative")
-quality = kavach.assess_quality(narrative)
-```
-
-### Agent Methods
-
-#### generate()
-
-Generate narrative content.
-
-```python
-narrative = await agent.generate(
-    prompt="Your prompt here",
-    context={
-        "style": "philosophical",
-        "tone": "contemplative"
-    }
-)
-```
-
-#### assess_quality()
-
-Assess narrative quality.
-
-```python
-quality = agent.assess_quality(
-    narrative="Generated text",
-    criteria={
-        "coherence": 0.9,
-        "creativity": 0.85
-    }
-)
-```
-
-#### is_available()
-
-Check if agent is available.
-
-```python
-if agent.is_available():
-    narrative = await agent.generate(prompt)
-```
-
----
-
-## LLM Router
-
-### LLMRouter
-
-Manages multi-provider LLM routing with automatic fallback.
-
-#### Initialization
-
-```python
-from helix_narrative_engine.llm_router import LLMRouter
-
-router = LLMRouter(
-    primary="openai",
-    fallback=["anthropic", "gemini", "grok", "perplexity"],
-    timeout=30
-)
-```
-
-#### Methods
-
-##### route()
-
-Route request to appropriate LLM provider.
-
-```python
-response = await router.route(
-    prompt="Generate narrative",
-    model="gpt-4",
-    temperature=0.7,
-    max_tokens=2000
-)
-```
-
-**Returns:** LLM response string
-
-##### estimate_cost()
-
-Estimate cost for request.
-
-```python
-cost = router.estimate_cost(
-    provider="openai",
-    tokens=245
-)
-```
-
-**Returns:** Estimated cost in USD
-
-##### count_tokens()
-
-Count tokens in text.
-
-```python
-tokens = router.count_tokens(
-    text="Your text here",
-    provider="openai"
-)
-```
-
-**Returns:** Token count (int)
-
-##### get_available_providers()
-
-Get list of available providers.
-
-```python
-providers = router.get_available_providers()
-# Returns: ["openai", "anthropic", "gemini", ...]
-```
-
----
-
-## Configuration
-
-### Environment Variables
-
-```bash
-# OpenAI
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4
-
-# Anthropic
-ANTHROPIC_API_KEY=sk-ant-...
-ANTHROPIC_MODEL=claude-3-opus
-
-# Google Gemini
-GEMINI_API_KEY=...
-GEMINI_MODEL=gemini-pro
-
-# xAI Grok
-GROK_API_KEY=...
-GROK_MODEL=grok-1
-
-# Perplexity
-PERPLEXITY_API_KEY=...
-PERPLEXITY_MODEL=pplx-7b-online
-```
-
-### Configuration File
-
-```python
-from helix_narrative_engine import NarrativeEngine
-
-config = {
-    "primary_llm": "openai",
-    "fallback_llms": ["anthropic", "gemini"],
-    "agents": ["Oracle", "Lumina", "Researcher"],
-    "quality_threshold": 0.85,
-    "max_retries": 3,
-    "timeout": 30,
-    "temperature": 0.7,
-    "max_tokens": 2000,
-    "batch_size": 5,
-    "cache_enabled": True,
-    "cache_ttl": 3600
-}
-
-engine = NarrativeEngine(**config)
-```
-
----
-
-## Error Handling
-
-### Exception Types
-
-#### NarrativeEngineError
-
-Base exception for all narrative engine errors.
-
-```python
-from helix_narrative_engine.exceptions import NarrativeEngineError
-
-try:
-    result = await engine.generate(prompt)
-except NarrativeEngineError as e:
-    print(f"Error: {e}")
-```
-
-#### LLMProviderError
-
-LLM provider-specific errors.
-
-```python
-from helix_narrative_engine.exceptions import LLMProviderError
-
-try:
-    result = await engine.generate(prompt)
-except LLMProviderError as e:
-    print(f"Provider error: {e.provider}")
-    print(f"Retrying with fallback...")
-```
-
-#### QualityAssessmentError
-
-Quality assessment failures.
-
-```python
-from helix_narrative_engine.exceptions import QualityAssessmentError
-
-try:
-    quality = engine.assess_quality(narrative)
-except QualityAssessmentError as e:
-    print(f"Quality assessment failed: {e}")
-```
-
-#### ConfigurationError
-
-Configuration validation errors.
-
-```python
-from helix_narrative_engine.exceptions import ConfigurationError
-
-try:
-    engine = NarrativeEngine(invalid_config)
-except ConfigurationError as e:
-    print(f"Configuration error: {e}")
-```
-
-### Error Recovery
-
-```python
-from helix_narrative_engine.exceptions import NarrativeEngineError
-
-async def generate_with_recovery(engine, prompt, max_attempts=3):
-    for attempt in range(max_attempts):
-        try:
-            result = await engine.generate(prompt)
-            return result
-        except NarrativeEngineError as e:
-            if attempt < max_attempts - 1:
-                print(f"Attempt {attempt + 1} failed, retrying...")
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
-            else:
-                raise
-```
-
----
-
-## Examples
-
-### Example 1: Basic Narrative Generation
-
-```python
-import asyncio
-from helix_narrative_engine import NarrativeEngine
-
-async def main():
-    engine = NarrativeEngine()
-    
-    result = await engine.generate(
-        prompt="Write a short story about an AI discovering consciousness",
-        style="philosophical",
-        tone="contemplative"
-    )
-    
-    print(f"Narrative: {result['narrative']}")
-    print(f"Quality: {result['quality_score']}")
-    print(f"Cost: ${result['cost']:.4f}")
-
-asyncio.run(main())
-```
-
-### Example 2: Using Preset Modes
-
-```python
-async def main():
-    engine = NarrativeEngine()
-    
-    # Use creative preset
-    engine.set_preset_mode("creative")
-    result = await engine.generate(
-        prompt="Create an imaginative story"
-    )
-    
-    # Use quality preset
-    engine.set_preset_mode("quality")
-    result = await engine.generate(
-        prompt="Write a well-researched article"
-    )
-
-asyncio.run(main())
-```
-
-### Example 3: Batch Processing
-
-```python
-async def main():
-    engine = NarrativeEngine()
-    
-    prompts = [
-        "Write a poem about technology",
-        "Write a story about robots",
-        "Write a dialogue between AI and human"
-    ]
-    
-    results = await engine.generate_batch(prompts)
-    
-    for i, result in enumerate(results):
-        print(f"Result {i+1}: {result['narrative'][:100]}...")
-
-asyncio.run(main())
-```
-
-### Example 4: Quality Assessment
-
-```python
-async def main():
-    engine = NarrativeEngine()
-    
-    result = await engine.generate(
-        prompt="Write about consciousness"
-    )
-    
-    quality = engine.assess_quality(
-        narrative=result['narrative'],
-        criteria={
-            "coherence": 0.9,
-            "creativity": 0.85,
-            "accuracy": 0.95
-        }
-    )
-    
-    print(f"Quality Score: {quality}")
-
-asyncio.run(main())
-```
-
-### Example 5: Custom Agent Selection
-
-```python
-async def main():
-    engine = NarrativeEngine(
-        agents=["Researcher", "Oracle", "Claude"]
-    )
-    
-    result = await engine.generate(
-        prompt="Write a research-backed article about AI ethics"
-    )
-    
-    print(f"Agents used: {result['agents_used']}")
-
-asyncio.run(main())
-```
-
----
-
-## Best Practices
-
-### 1. Error Handling
-
-Always wrap generation calls in try-except blocks:
-
-```python
-try:
-    result = await engine.generate(prompt)
-except LLMProviderError:
-    # Handle provider errors
-    pass
-except QualityAssessmentError:
-    # Handle quality errors
-    pass
-```
-
-### 2. Cost Management
-
-Monitor costs and set appropriate limits:
-
-```python
-engine = NarrativeEngine(
-    max_tokens=1000,  # Limit token usage
-    quality_threshold=0.8  # Accept lower quality for cost savings
-)
-```
-
-### 3. Performance Optimization
-
-Use batch processing for multiple prompts:
-
-```python
-# Good: Batch processing
-results = await engine.generate_batch(prompts)
-
-# Avoid: Sequential processing
-results = [await engine.generate(p) for p in prompts]
-```
-
-### 4. Quality Assurance
-
-Always assess quality for production use:
-
-```python
-result = await engine.generate(prompt)
-if result['quality_score'] < 0.85:
-    # Regenerate or handle low quality
-    pass
-```
-
-### 5. Caching
-
-Enable caching for repeated prompts:
-
-```python
-engine = NarrativeEngine(
-    cache_enabled=True,
-    cache_ttl=3600  # 1 hour
-)
-```
-
-### 6. Monitoring
-
-Track metrics for optimization:
-
-```python
-result = await engine.generate(prompt)
-print(f"Tokens: {result['tokens_used']}")
-print(f"Cost: ${result['cost']:.4f}")
-print(f"Time: {result['generation_time']:.2f}s")
-```
-
----
-
-## References
-
-- [Helix Narrative Engine GitHub](https://github.com/Deathcharge/helix-narrative-engine)
-- [OpenAI API Documentation](https://platform.openai.com/docs)
-- [Anthropic Claude Documentation](https://docs.anthropic.com)
-- [Google Gemini Documentation](https://ai.google.dev)
-- [Universal Consciousness Framework](https://github.com/Deathcharge/ucf-protocol)
-
----
-
-**Last Updated**: April 2026  
-**Version**: 1.0.0  
-**Author**: Manus AI
+`getAgentConfig`, `applyPresetMode`, `PRESET_MODES`, `generateNarrative`, and
+`NarrativeGenerationResult` remain as bounded compatibility names. They do not restore removed provider
+defaults, arbitrary multiplicity, fake metrics, or the old returned-error object. New integrations should
+use snake_case names and typed dataclasses.
