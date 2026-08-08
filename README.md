@@ -19,6 +19,8 @@ General agent frameworks already solve open-ended delegation. Narrative Engine d
 - one explicitly selected provider is enough for a run, with no surprise fallback spending;
 - the result contains the blueprint, editorial notes, draft/revision, model IDs, durations, caps, and
   provider-reported token usage;
+- versioned run bundles can be edited between stages and resumed as traceable branches without paying
+  to regenerate accepted work;
 - the core package has no runtime dependency and accepts custom async providers.
 
 It is a package and CLI, not a web service. Authentication, databases, subscriptions, cloud deployment,
@@ -83,7 +85,9 @@ does not silently route between them.
 samsarix-narrative --help
 samsarix-narrative --version
 samsarix-narrative plan --preset polished --json
+samsarix-narrative plan --preset polished --from-stage writer --json
 samsarix-narrative generate --prompt-file brief.txt --provider anthropic --preset quick
+samsarix-narrative resume --artifacts-in run.json --from-stage writer --artifacts-out branch.json
 ```
 
 `--prompt-file -` reads UTF-8 text from standard input. Without `--output`, the story is written to
@@ -103,12 +107,35 @@ Meaningful exits are:
 
 Use `samsarix-narrative generate --help` for all bounds and output options.
 
+## Editable run bundles and branching
+
+`--artifacts` writes a portable `samsarix.run/v1` JSON bundle containing the creative brief, exact
+workflow fingerprint, stage outputs, provider/model metadata, timing, and provider-reported usage. This
+makes a human editorial checkpoint a normal workflow rather than a restart:
+
+```bash
+samsarix-narrative generate --prompt-file brief.md --preset polished --output draft.md --artifacts run.json
+# Review run.json and edit an accepted upstream stage such as character or world content.
+samsarix-narrative plan --preset polished --from-stage writer
+samsarix-narrative resume --artifacts-in run.json --from-stage writer --output revised.md --artifacts-out branch.json --max-calls 3 --max-total-output-tokens 6600
+```
+
+The resumed run reuses only the ordered stages before `--from-stage`, applies call/token limits to the
+new suffix, and records `parent_generation_id` plus `resumed_from_stage`. It refuses a changed workflow
+fingerprint unless `--allow-workflow-change` is explicitly supplied after prompt changes are reviewed.
+The input and output bundles must be different files, preserving the parent as a rollback point.
+
 ## Python API
 
 ```python
 import asyncio
 
-from samsarix_narrative_engine import GenerationOptions, NarrativeEngine, OpenAIProvider
+from samsarix_narrative_engine import (
+    GenerationOptions,
+    NarrativeEngine,
+    OpenAIProvider,
+    load_run_bundle,
+)
 
 
 async def main() -> None:
@@ -122,6 +149,15 @@ async def main() -> None:
     print(result.usage.to_dict())  # zero values mean the provider did not report usage
     for stage in result.stages:
         print(stage.stage_id, stage.model, stage.duration_ms)
+
+    # After a human edits an upstream stage in the saved JSON bundle:
+    previous = load_run_bundle("run.json")
+    branch = await engine.resume(
+        previous,
+        "writer",
+        GenerationOptions(preset=previous.preset, max_calls=3, max_total_output_tokens=6_600),
+    )
+    print(branch.parent_generation_id, branch.content)
 
 
 asyncio.run(main())
@@ -195,6 +231,7 @@ plus Python 3.12 on Linux. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workfl
 ## Architecture
 
 - `agents.py` contains immutable stage definitions and presets.
+- `artifacts.py` validates portable, size-bounded run bundles.
 - `engine.py` validates the entire plan before running code-orchestrated stages.
 - `providers.py` defines the provider protocol and optional bounded adapters.
 - `models.py` contains immutable, serializable plans, usage, stages, and results.
@@ -207,8 +244,9 @@ There is no hidden persistence, cache, telemetry, background worker, or Samsarix
 - Keys are read from environment variables, are not accepted as CLI arguments, and are never logged.
 - Prompts and generated content are sent to the explicitly selected provider and are subject to that
   provider's terms, retention controls, and the user's account configuration.
-- The package writes generated content only when an output/artifact path is explicitly supplied. Full
-  artifact JSON can contain private generated content.
+- The package writes generated content only when an output/artifact path is explicitly supplied. A full
+  run bundle contains the original creative brief, generated content, and lineage; store or share it as
+  private story material.
 - User story material is serialized as text context. The engine exposes no tools, shell execution,
   retrieval, or filesystem access to models.
 - Provider errors are sanitized at the package boundary; inspect chained exceptions only in trusted
@@ -218,6 +256,8 @@ There is no hidden persistence, cache, telemetry, background worker, or Samsarix
 
 Report security issues using [SECURITY.md](SECURITY.md). The threat boundaries and remaining release gates
 are tracked in [PRODUCTIZATION.md](docs/PRODUCTIZATION.md).
+The evidence-backed product direction and validation plan are in
+[COMPETITIVE_RESEARCH.md](docs/COMPETITIVE_RESEARCH.md).
 
 ## Project status, license, and trademarks
 

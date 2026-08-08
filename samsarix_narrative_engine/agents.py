@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -22,6 +24,7 @@ class AgentDefinition:
     role: str
     system_prompt: str
     max_output_tokens: int
+    context_from: tuple[str, ...] = ()
 
 
 _AGENTS = {
@@ -47,6 +50,7 @@ _AGENTS = {
             "emotional change. Flag continuity risks instead of inventing external facts."
         ),
         max_output_tokens=800,
+        context_from=("architect",),
     ),
     "world": AgentDefinition(
         agent_id="world",
@@ -58,6 +62,7 @@ _AGENTS = {
             "world internally consistent. Do not fabricate citations or imply factual research."
         ),
         max_output_tokens=800,
+        context_from=("architect",),
     ),
     "provocateur": AgentDefinition(
         agent_id="provocateur",
@@ -69,6 +74,7 @@ _AGENTS = {
             "world rules. Prefer one strong choice over a pile of random twists."
         ),
         max_output_tokens=600,
+        context_from=("architect", "character", "world"),
     ),
     "writer": AgentDefinition(
         agent_id="writer",
@@ -81,6 +87,7 @@ _AGENTS = {
             "central conflict and respect every explicit content constraint in the brief."
         ),
         max_output_tokens=2_600,
+        context_from=("architect", "character", "world", "provocateur"),
     ),
     "critic": AgentDefinition(
         agent_id="critic",
@@ -93,6 +100,7 @@ _AGENTS = {
             "not output a numeric quality score or claim ethical approval."
         ),
         max_output_tokens=900,
+        context_from=("writer",),
     ),
     "reviser": AgentDefinition(
         agent_id="reviser",
@@ -104,6 +112,7 @@ _AGENTS = {
             "title. Do not mention the workflow, the memo, or any quality or safety judgment."
         ),
         max_output_tokens=2_800,
+        context_from=("architect", "writer", "critic"),
     ),
 }
 
@@ -173,6 +182,47 @@ def build_plan(preset: str) -> GenerationPlan:
     return GenerationPlan(preset=preset, stages=stages)
 
 
+def build_resume_plan(preset: str, from_stage: str) -> GenerationPlan:
+    """Build the suffix of a preset that will be rerun from ``from_stage``."""
+
+    plan = build_plan(preset)
+    stage_ids = tuple(stage.stage_id for stage in plan.stages)
+    try:
+        start = stage_ids.index(from_stage)
+    except ValueError as error:
+        choices = ", ".join(stage_ids)
+        raise ValueError(
+            f"stage '{from_stage}' is not in preset '{preset}'; choose one of: {choices}"
+        ) from error
+    return GenerationPlan(preset=preset, stages=plan.stages[start:])
+
+
+def workflow_fingerprint(preset: str) -> str:
+    """Return a stable digest of the exact built-in workflow definition."""
+
+    plan = build_plan(preset)
+    definition = {
+        "preset": preset,
+        "stages": [
+            {
+                "stage_id": stage.stage_id,
+                "role": AGENTS[stage.stage_id].role,
+                "system_prompt": AGENTS[stage.stage_id].system_prompt,
+                "max_output_tokens": stage.max_output_tokens,
+                "context_from": list(AGENTS[stage.stage_id].context_from),
+            }
+            for stage in plan.stages
+        ],
+    }
+    encoded = json.dumps(
+        definition,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+
+
 # Compatibility helpers for the original 1.0 surface. New code should use the
 # snake_case functions and immutable dataclasses above.
 def getAgentConfig(agent_id: str) -> Optional[dict[str, Any]]:
@@ -187,6 +237,7 @@ def getAgentConfig(agent_id: str) -> Optional[dict[str, Any]]:
         "role": agent.role,
         "systemPrompt": agent.system_prompt,
         "maxOutputTokens": agent.max_output_tokens,
+        "contextFrom": list(agent.context_from),
     }
 
 

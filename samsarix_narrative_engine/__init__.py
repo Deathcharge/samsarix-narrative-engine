@@ -9,12 +9,15 @@ from .agents import (
     AgentDefinition,
     applyPresetMode,
     build_plan,
+    build_resume_plan,
     get_agent,
     get_all_agents,
     get_all_presets,
     get_preset,
     getAgentConfig,
+    workflow_fingerprint,
 )
+from .artifacts import dumps_run_bundle, load_run_bundle, loads_run_bundle
 from .engine import (
     NarrativeEngine,
     NarrativeGenerationResult,
@@ -30,6 +33,7 @@ from .exceptions import (
     ProviderError,
 )
 from .models import (
+    RUN_BUNDLE_SCHEMA,
     GenerationOptions,
     GenerationPlan,
     Message,
@@ -72,8 +76,10 @@ __all__ = [
     "ProviderResponse",
     "StageResult",
     "TokenUsage",
+    "RUN_BUNDLE_SCHEMA",
     "applyPresetMode",
     "build_plan",
+    "build_resume_plan",
     "build_provider",
     "generate_narrative",
     "generateNarrative",
@@ -82,5 +88,9 @@ __all__ = [
     "get_all_agents",
     "get_all_presets",
     "get_preset",
+    "dumps_run_bundle",
+    "load_run_bundle",
+    "loads_run_bundle",
     "provider_from_env",
+    "workflow_fingerprint",
 ]

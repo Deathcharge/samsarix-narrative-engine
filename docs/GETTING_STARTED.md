@@ -88,14 +88,40 @@ Run:
 samsarix-narrative generate --prompt-file brief.txt --preset balanced --output story.md --artifacts run.json
 ```
 
-`story.md` contains only the final model output. `run.json` contains the final story plus every stage,
-model ID, duration, configured output cap, and provider-reported token count. The original brief is not
-persisted by the engine, although generated artifacts can repeat its content.
+`story.md` contains only the final model output. `run.json` is a versioned run bundle containing the
+original brief, workflow fingerprint, final story, every stage, lineage, model IDs, durations, configured
+output caps, and provider-reported token counts. Treat it as private story material.
 
 If a destination already exists, generation exits with code 4 before provider construction or paid API
 use. Add `--force` only when replacement is intentional.
 
-## 5. Handle ordinary failures
+## 5. Review, edit, and branch a run
+
+Human review can change an accepted planning artifact without regenerating the work before it. Keep the
+original bundle as a rollback point and copy it before editing:
+
+```bash
+# Edit the character or world stage content in review.json with your normal JSON-aware editor.
+cp run.json review.json
+```
+
+On PowerShell, use `Copy-Item run.json review.json`. Keep the schema, metadata, stage IDs, and aggregate
+usage intact; edit only the stage `content` that needs an editorial correction.
+
+Inspect the exact remaining spend without a key:
+
+```bash
+samsarix-narrative plan --preset balanced --from-stage writer
+```
+
+Resume from the first stage that should see the edit. A balanced run resumed at `writer` makes one new
+call and preserves the accepted architect, character, and world stages:
+
+```bash
+samsarix-narrative resume --artifacts-in review.json --from-stage writer --output branch.md --artifacts-out branch.json --max-calls 1 --max-total-output-tokens 2600
+```
+
+## 6. Handle ordinary failures
 
 - Missing key or optional SDK: exit 2 with the required environment variable or install extra.
 - Empty/oversized prompt or insufficient call/token budget: exit 2 before a provider call.
@@ -109,7 +135,7 @@ Provider errors are intentionally sanitized. In a trusted Python integration, th
 exception remains available as the exception cause for debugging; do not expose it to end users without
 review.
 
-## 6. Use the Python API
+## 7. Use the Python API
 
 ```python
 import asyncio

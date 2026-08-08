@@ -16,7 +16,8 @@ from pathlib import Path
 from typing import Optional
 
 from . import __version__
-from .agents import PRESETS, build_plan
+from .agents import PRESETS, build_plan, build_resume_plan
+from .artifacts import dumps_run_bundle, load_run_bundle
 from .engine import NarrativeEngine
 from .exceptions import (
     BudgetExceededError,
@@ -44,6 +45,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="show calls and output-token caps without using a provider",
     )
     plan_parser.add_argument("--preset", choices=tuple(PRESETS), default="balanced")
+    plan_parser.add_argument(
+        "--from-stage",
+        help="show only the calls needed to resume from this stage",
+    )
     plan_parser.add_argument("--json", action="store_true", dest="as_json")
 
     generate_parser = subparsers.add_parser("generate", help="generate one complete short story")
@@ -79,14 +84,60 @@ def _build_parser() -> argparse.ArgumentParser:
     generate_parser.add_argument("--max-prompt-chars", type=int, default=12_000)
     generate_parser.add_argument("--max-calls", type=int, default=7)
     generate_parser.add_argument("--max-total-output-tokens", type=int, default=10_000)
+
+    resume_parser = subparsers.add_parser(
+        "resume",
+        help="branch an editable run bundle and rerun one stage plus its successors",
+    )
+    resume_parser.add_argument(
+        "--artifacts-in",
+        required=True,
+        type=Path,
+        help="existing Samsarix run bundle to branch",
+    )
+    resume_parser.add_argument(
+        "--from-stage",
+        required=True,
+        help="first stage to rerun; earlier edited artifacts are reused",
+    )
+    resume_parser.add_argument(
+        "--provider",
+        choices=("openai", "anthropic", "xai", "perplexity"),
+        default=os.getenv("SAMSARIX_PROVIDER", "openai"),
+    )
+    resume_parser.add_argument("--model", default=os.getenv("SAMSARIX_MODEL"))
+    resume_parser.add_argument("--output", type=Path, help="write branched Markdown story here")
+    resume_parser.add_argument(
+        "--artifacts-out",
+        type=Path,
+        help="write the new versioned run bundle here",
+    )
+    resume_parser.add_argument(
+        "--allow-workflow-change",
+        action="store_true",
+        help="resume after reviewing changes to built-in prompts or stage definitions",
+    )
+    resume_parser.add_argument("--force", action="store_true")
+    resume_parser.add_argument("--timeout", type=float, default=90.0, dest="timeout_seconds")
+    resume_parser.add_argument("--max-prompt-chars", type=int, default=12_000)
+    resume_parser.add_argument("--max-calls", type=int, default=7)
+    resume_parser.add_argument("--max-total-output-tokens", type=int, default=10_000)
     return parser
 
 
-def _render_plan(preset: str, as_json: bool) -> str:
-    plan = build_plan(preset)
+def _render_plan(preset: str, as_json: bool, from_stage: Optional[str] = None) -> str:
+    try:
+        plan = build_resume_plan(preset, from_stage) if from_stage else build_plan(preset)
+    except ValueError as error:
+        raise InputValidationError(str(error)) from error
     if as_json:
-        return json.dumps(plan.to_dict(), indent=2)
+        payload = plan.to_dict()
+        if from_stage:
+            payload["from_stage"] = from_stage
+        return json.dumps(payload, indent=2)
     rows = [f"Preset: {plan.preset}"]
+    if from_stage:
+        rows.append(f"Resume from: {from_stage}")
     for index, stage in enumerate(plan.stages, start=1):
         rows.append(
             f"{index}. {stage.stage_id} - {stage.role} "
@@ -193,7 +244,7 @@ async def _generate(args: argparse.Namespace, provider_factory: ProviderFactory)
     if args.artifacts is not None:
         _atomic_write(
             args.artifacts,
-            json.dumps(result.to_dict(), ensure_ascii=False, indent=2) + "\n",
+            dumps_run_bundle(result),
             force=args.force,
         )
 
@@ -203,6 +254,58 @@ async def _generate(args: argparse.Namespace, provider_factory: ProviderFactory)
     print(
         f"Generated {result.generation_id}: {len(result.stages)} calls, "
         f"{token_summary} total tokens; story written to {destination}.",
+        file=sys.stderr,
+    )
+    return 0
+
+
+async def _resume(args: argparse.Namespace, provider_factory: ProviderFactory) -> int:
+    if args.output is not None and args.artifacts_out is not None:
+        if args.output.resolve() == args.artifacts_out.resolve():
+            raise OutputError("--output and --artifacts-out must name different files")
+    if args.artifacts_out is not None:
+        if args.artifacts_in.resolve() == args.artifacts_out.resolve():
+            raise OutputError("--artifacts-in and --artifacts-out must name different files")
+    _preflight_output(args.output, force=args.force)
+    _preflight_output(args.artifacts_out, force=args.force)
+
+    previous = load_run_bundle(args.artifacts_in)
+    options = GenerationOptions(
+        preset=previous.preset,
+        timeout_seconds=args.timeout_seconds,
+        max_prompt_chars=args.max_prompt_chars,
+        max_calls=args.max_calls,
+        max_total_output_tokens=args.max_total_output_tokens,
+    )
+    provider = provider_factory(
+        args.provider,
+        model=args.model,
+        timeout_seconds=args.timeout_seconds,
+    )
+    result = await NarrativeEngine(provider).resume(
+        previous,
+        args.from_stage,
+        options,
+        allow_workflow_change=args.allow_workflow_change,
+    )
+
+    story = result.content.rstrip() + "\n"
+    if args.output is None:
+        sys.stdout.write(story)
+    else:
+        _atomic_write(args.output, story, force=args.force)
+    if args.artifacts_out is not None:
+        _atomic_write(args.artifacts_out, dumps_run_bundle(result), force=args.force)
+
+    resumed_plan = build_resume_plan(previous.preset, args.from_stage)
+    resumed_stages = result.stages[-resumed_plan.max_calls :]
+    resumed_tokens = sum(stage.usage.total_tokens for stage in resumed_stages)
+    token_summary = str(resumed_tokens) if resumed_tokens else "unreported"
+    destination = str(args.output) if args.output is not None else "standard output"
+    print(
+        f"Resumed {previous.generation_id} from {args.from_stage} as {result.generation_id}: "
+        f"{resumed_plan.max_calls} new calls, {token_summary} new total tokens; "
+        f"story written to {destination}.",
         file=sys.stderr,
     )
     return 0
@@ -218,8 +321,10 @@ def main(
     args = _build_parser().parse_args(argv)
     try:
         if args.command == "plan":
-            print(_render_plan(args.preset, args.as_json))
+            print(_render_plan(args.preset, args.as_json, args.from_stage))
             return 0
+        if args.command == "resume":
+            return asyncio.run(_resume(args, provider_factory))
         return asyncio.run(_generate(args, provider_factory))
     except (ConfigurationError, InputValidationError, BudgetExceededError) as error:
         print(f"error: {error}", file=sys.stderr)

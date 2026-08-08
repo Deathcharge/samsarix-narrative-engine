@@ -12,6 +12,9 @@ published.
 - Optional OpenAI Responses, Anthropic Messages, xAI, and Perplexity adapters.
 - `samsarix-narrative` plan and generate CLI with atomic output and artifact persistence.
 - Production-path tests, strict typing, formatting/linting, package verification, and CI.
+- Versioned `samsarix.run/v1` bundles with strict UTF-8, schema, lineage, stage, and usage validation.
+- Editable resume branches through the Python API and CLI, with suffix-only budget preflight.
+- Stable workflow fingerprints that require explicit approval before resuming across workflow changes.
 
 ### Changed
 

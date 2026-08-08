@@ -14,7 +14,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from .agents import AGENTS, build_plan
+from .agents import AGENTS, build_plan, build_resume_plan, workflow_fingerprint
 from .exceptions import (
     BudgetExceededError,
     InputValidationError,
@@ -23,8 +23,10 @@ from .exceptions import (
 )
 from .models import (
     GenerationOptions,
+    GenerationPlan,
     Message,
     NarrativeResult,
+    PlannedStage,
     ProviderResponse,
     StageResult,
     TokenUsage,
@@ -63,27 +65,100 @@ class NarrativeEngine:
         selected = options or GenerationOptions()
         creative_brief = _validate_preflight(prompt, selected)
         plan = build_plan(selected.preset)
+        _validate_plan_budget(plan, selected)
+        return await self._execute(
+            creative_brief,
+            selected,
+            plan.stages,
+            prior_stages=(),
+            parent_generation_id=None,
+            resumed_from_stage=None,
+        )
 
-        if plan.max_calls > selected.max_calls:
-            raise BudgetExceededError(
-                f"preset '{selected.preset}' requires {plan.max_calls} calls; "
-                f"configured maximum is {selected.max_calls}"
-            )
-        if plan.max_output_tokens > selected.max_total_output_tokens:
-            raise BudgetExceededError(
-                f"preset '{selected.preset}' can request {plan.max_output_tokens} output tokens; "
-                f"configured maximum is {selected.max_total_output_tokens}"
+    async def resume(
+        self,
+        previous: NarrativeResult,
+        from_stage: str,
+        options: Optional[GenerationOptions] = None,
+        *,
+        allow_workflow_change: bool = False,
+    ) -> NarrativeResult:
+        """Branch an editable run bundle and rerun ``from_stage`` onward.
+
+        Completed stages before ``from_stage`` are reused without provider calls.
+        Budget limits apply only to the stages that will run in this invocation.
+        """
+
+        if not isinstance(previous, NarrativeResult):
+            raise TypeError("previous must be a NarrativeResult")
+        if not isinstance(from_stage, str) or not from_stage.strip():
+            raise InputValidationError("from_stage must be a non-empty string")
+        if not isinstance(allow_workflow_change, bool):
+            raise InputValidationError("allow_workflow_change must be a boolean")
+
+        selected = options or GenerationOptions(preset=previous.preset)
+        if selected.preset != previous.preset:
+            raise InputValidationError("resume preset must match the run bundle preset")
+        creative_brief = _validate_preflight(previous.creative_brief, selected)
+        full_plan = build_plan(selected.preset)
+        full_stage_ids = tuple(stage.stage_id for stage in full_plan.stages)
+        try:
+            start = full_stage_ids.index(from_stage)
+        except ValueError as error:
+            choices = ", ".join(full_stage_ids)
+            raise InputValidationError(
+                f"stage '{from_stage}' is not in preset '{selected.preset}'; "
+                f"choose one of: {choices}"
+            ) from error
+
+        artifact_stage_ids = tuple(stage.stage_id for stage in previous.stages)
+        if artifact_stage_ids != full_stage_ids[: len(artifact_stage_ids)]:
+            raise InputValidationError("run bundle stages are not an ordered prefix of its preset")
+        if len(previous.stages) < start:
+            missing = ", ".join(full_stage_ids[len(previous.stages) : start])
+            raise InputValidationError(
+                f"run bundle is missing stages required before '{from_stage}': {missing}"
             )
 
-        artifacts: dict[str, str] = {}
-        stages: list[StageResult] = []
-        for planned_stage in plan.stages:
+        expected_fingerprint = workflow_fingerprint(selected.preset)
+        if previous.workflow_fingerprint != expected_fingerprint and not allow_workflow_change:
+            raise InputValidationError(
+                "run bundle workflow differs from this installation; "
+                "set allow_workflow_change only after reviewing the changed prompts"
+            )
+
+        remaining_plan = build_resume_plan(selected.preset, from_stage)
+        _validate_plan_budget(remaining_plan, selected)
+        return await self._execute(
+            creative_brief,
+            selected,
+            remaining_plan.stages,
+            prior_stages=previous.stages[:start],
+            parent_generation_id=previous.generation_id,
+            resumed_from_stage=from_stage,
+        )
+
+    async def _execute(
+        self,
+        creative_brief: str,
+        options: GenerationOptions,
+        planned_stages: tuple[PlannedStage, ...],
+        *,
+        prior_stages: tuple[StageResult, ...],
+        parent_generation_id: Optional[str],
+        resumed_from_stage: Optional[str],
+    ) -> NarrativeResult:
+        """Execute a validated workflow suffix and assemble its lineage."""
+
+        artifacts = {stage.stage_id: stage.content for stage in prior_stages}
+        stages = list(prior_stages)
+        for planned_stage in planned_stages:
             agent = AGENTS[planned_stage.stage_id]
             response, duration_ms = await self._run_stage(
                 agent_id=planned_stage.stage_id,
                 prompt=creative_brief,
                 artifacts=artifacts,
-                timeout_seconds=selected.timeout_seconds,
+                timeout_seconds=options.timeout_seconds,
                 max_output_tokens=planned_stage.max_output_tokens,
             )
             if (
@@ -113,15 +188,19 @@ class NarrativeEngine:
                 )
             )
 
-        final_stage = "reviser" if "reviser" in artifacts else "writer"
+        final_stage = stages[-1].stage_id
         content = artifacts[final_stage]
         return NarrativeResult(
             generation_id=f"nar_{uuid.uuid4().hex[:16]}",
             created_at=datetime.now(timezone.utc).isoformat(),
-            preset=selected.preset,
+            preset=options.preset,
             title=_extract_title(content),
             content=content,
             stages=tuple(stages),
+            creative_brief=creative_brief,
+            workflow_fingerprint=workflow_fingerprint(options.preset),
+            parent_generation_id=parent_generation_id,
+            resumed_from_stage=resumed_from_stage,
         )
 
     async def _run_stage(
@@ -213,16 +292,21 @@ def _validate_preflight(prompt: str, options: GenerationOptions) -> str:
     return creative_brief
 
 
+def _validate_plan_budget(plan: GenerationPlan, options: GenerationOptions) -> None:
+    if plan.max_calls > options.max_calls:
+        raise BudgetExceededError(
+            f"preset '{options.preset}' requires {plan.max_calls} calls; "
+            f"configured maximum is {options.max_calls}"
+        )
+    if plan.max_output_tokens > options.max_total_output_tokens:
+        raise BudgetExceededError(
+            f"preset '{options.preset}' can request {plan.max_output_tokens} output tokens; "
+            f"configured maximum is {options.max_total_output_tokens}"
+        )
+
+
 def _build_stage_input(agent_id: str, prompt: str, artifacts: dict[str, str]) -> str:
-    relevant_ids = {
-        "architect": (),
-        "character": ("architect",),
-        "world": ("architect",),
-        "provocateur": ("architect", "character", "world"),
-        "writer": ("architect", "character", "world", "provocateur"),
-        "critic": ("writer",),
-        "reviser": ("architect", "writer", "critic"),
-    }[agent_id]
+    relevant_ids = AGENTS[agent_id].context_from
     context = {
         "creative_brief": prompt,
         "artifacts": {key: artifacts[key] for key in relevant_ids if key in artifacts},

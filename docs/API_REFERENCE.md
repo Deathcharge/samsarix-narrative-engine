@@ -15,6 +15,17 @@ and immutable for the engine instance.
 Validates input and the complete plan before the first provider call, runs stages in order, and returns a
 `NarrativeResult`. It raises an exception on failure and never represents a partial draft as success.
 
+### `await NarrativeEngine.resume(previous, from_stage, options=None, *, allow_workflow_change=False)`
+
+Creates a new branch from a loaded or in-memory `NarrativeResult`. Stages before `from_stage` are reused;
+that stage and every successor in the preset execute again. The previous result is never mutated. Call
+and output-token limits apply to the new suffix only.
+
+Resume validates that prior stages form the exact ordered preset prefix and that the recorded workflow
+fingerprint matches the installed prompts, context edges, roles, and token caps. Set
+`allow_workflow_change=True` only after reviewing those changes. The result records
+`parent_generation_id` and `resumed_from_stage`.
+
 ### `await generate_narrative(prompt, provider, options=None)`
 
 Convenience equivalent to constructing `NarrativeEngine(provider)` for one run.
@@ -45,6 +56,16 @@ Returns a `GenerationPlan` without constructing a provider or making a network r
 `max_calls`, `max_output_tokens`, and ordered `PlannedStage` values are suitable for user confirmation,
 policy checks, and UI display.
 
+### `build_resume_plan(preset, from_stage)`
+
+Returns the exact suffix that a resume operation will execute. It supports approval and remaining-spend
+preflight without constructing a provider.
+
+### `workflow_fingerprint(preset)`
+
+Returns a stable SHA-256 digest over the ordered built-in stages, prompts, context edges, roles, and
+output caps. It detects semantic workflow drift; it is not a signature or proof of authorship.
+
 ### Registries
 
 `AGENTS` and `PRESETS` are immutable mappings. `get_agent`, `get_all_agents`, `get_preset`, and
@@ -59,7 +80,10 @@ Immutable fields:
 
 - `generation_id`: random `nar_` identifier; not a database key or proof of persistence;
 - `created_at`: UTC ISO-8601 completion timestamp;
-- `preset`, `title`, `content`;
+- `preset`, `title`, `content`, and the original `creative_brief`;
+- `workflow_fingerprint`: exact built-in workflow digest;
+- `parent_generation_id` and `resumed_from_stage`: both null for an original run and both populated for
+  a branch;
 - `stages`: ordered tuple of `StageResult` artifacts.
 
 `usage` sums provider-reported `TokenUsage` across stages. A zero count means “not reported,” not zero
@@ -79,6 +103,20 @@ observational, not service-level guarantees.
 
 Contains nonnegative `input_tokens`, `output_tokens`, and `total_tokens`. Providers normalize their own
 SDK fields; custom providers must not invent counts. Supports addition and `to_dict()`.
+
+## Run bundles
+
+### `dumps_run_bundle(result)`
+
+Returns UTF-8-compatible JSON text for a strictly valid `samsarix.run/v1` bundle. It includes the
+creative brief and all generated content, so callers must treat it as private story material.
+
+### `loads_run_bundle(payload)` / `load_run_bundle(path)`
+
+Strictly validate and load a JSON string or UTF-8 file into `NarrativeResult`. Loading does not contact a
+provider. Bundles are limited to 16 MiB; fields are not type-coerced; stage identifiers must be unique;
+aggregate usage must match stage usage; and malformed schema, timestamps, lineage, content, or token
+counts raise `InputValidationError`.
 
 ## Provider contract
 
