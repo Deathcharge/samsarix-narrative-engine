@@ -74,8 +74,8 @@ configuration selected by the user.
 
 1. **Implemented:** strict versioned run bundles, workflow fingerprints, edit/resume branching, lineage,
    and suffix-only budget preflight.
-2. **Next:** bounded custom workflow specifications with explicit dependencies and useful checked-in
-   examples.
+2. **Implemented:** bounded custom workflow specifications with explicit dependencies, portable schemas,
+   and checked-in editorial and game-narrative examples.
 3. **Next:** deterministic evaluation manifests, blinded review packets, scoring import, and comparison
    reports.
 4. **Then:** structured story-bible/continuity artifacts and optional OpenTelemetry-compatible events,

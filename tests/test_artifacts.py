@@ -22,6 +22,7 @@ from samsarix_narrative_engine import (
     load_run_bundle,
     loads_run_bundle,
     workflow_fingerprint,
+    workflow_for_preset,
 )
 
 
@@ -56,6 +57,7 @@ def _result() -> NarrativeResult:
         ),
         creative_brief="A reproducible fixture.",
         workflow_fingerprint=workflow_fingerprint("quick"),
+        workflow=workflow_for_preset("quick"),
     )
 
 
@@ -74,8 +76,10 @@ def test_run_bundle_round_trip_and_file_loading(tmp_path: Path) -> None:
     ("update", "message"),
     (
         ({"schema": "unknown"}, "schema"),
+        ({"unexpected": True}, "unknown fields"),
         ({"created_at": "not-a-time"}, "created_at"),
         ({"workflow_fingerprint": "sha256:nope"}, "workflow_fingerprint"),
+        ({"workflow_id": "other"}, "workflow_id"),
         ({"creative_brief": ""}, "creative_brief"),
         ({"stages": []}, "stages"),
         ({"usage": {"input_tokens": 999, "output_tokens": 0, "total_tokens": 0}}, "usage"),
@@ -98,6 +102,28 @@ def test_run_bundle_rejects_duplicate_and_invalid_stage_fields() -> None:
     data = _result().to_dict()
     data["stages"][0]["duration_ms"] = True
     with pytest.raises(InputValidationError, match="duration_ms"):
+        loads_run_bundle(json.dumps(data))
+
+    data = _result().to_dict()
+    data["stages"][0]["unexpected"] = True
+    with pytest.raises(InputValidationError, match="unknown fields"):
+        loads_run_bundle(json.dumps(data))
+
+    data = _result().to_dict()
+    data["usage"]["unexpected"] = 0
+    with pytest.raises(InputValidationError, match="unknown fields"):
+        loads_run_bundle(json.dumps(data))
+
+
+def test_run_bundle_rejects_embedded_workflow_and_final_content_mismatches() -> None:
+    data = _result().to_dict()
+    data["workflow"]["name"] = "Tampered"
+    with pytest.raises(InputValidationError, match="does not match"):
+        loads_run_bundle(json.dumps(data))
+
+    data = _result().to_dict()
+    data["content"] = "Different from the final stage"
+    with pytest.raises(InputValidationError, match="final stage"):
         loads_run_bundle(json.dumps(data))
 
 

@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Samsarix Narrative Run Bundle v1",
+  "description": "Self-contained narrative run, workflow, lineage, stage artifacts, and reported usage.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "generation_id",
+    "parent_generation_id",
+    "resumed_from_stage",
+    "created_at",
+    "preset",
+    "workflow_id",
+    "workflow",
+    "workflow_fingerprint",
+    "creative_brief",
+    "title",
+    "content",
+    "usage",
+    "stages"
+  ],
+  "properties": {
+    "schema": {
+      "const": "samsarix.run/v1"
+    },
+    "generation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "parent_generation_id": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "resumed_from_stage": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 64
+    },
+    "preset": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9._-]{0,63}$"
+    },
+    "workflow_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9._-]{0,63}$"
+    },
+    "workflow": {
+      "$ref": "./workflow-v1.schema.json"
+    },
+    "workflow_fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "creative_brief": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100000
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "content": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000000
+    },
+    "usage": {
+      "$ref": "#/$defs/usage"
+    },
+    "stages": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "items": {
+        "$ref": "#/$defs/stage_result"
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "parent_generation_id": {
+          "type": "null"
+        },
+        "resumed_from_stage": {
+          "type": "null"
+        }
+      }
+    },
+    {
+      "properties": {
+        "parent_generation_id": {
+          "type": "string"
+        },
+        "resumed_from_stage": {
+          "type": "string"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "usage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input_tokens", "output_tokens", "total_tokens"],
+      "properties": {
+        "input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total_tokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "stage_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stage_id",
+        "role",
+        "content",
+        "provider",
+        "model",
+        "usage",
+        "duration_ms",
+        "max_output_tokens"
+      ],
+      "properties": {
+        "stage_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+        },
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000000
+        },
+        "provider": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "usage": {
+          "$ref": "#/$defs/usage"
+        },
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_output_tokens": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

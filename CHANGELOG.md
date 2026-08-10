@@ -15,6 +15,10 @@ published.
 - Versioned `samsarix.run/v1` bundles with strict UTF-8, schema, lineage, stage, and usage validation.
 - Editable resume branches through the Python API and CLI, with suffix-only budget preflight.
 - Stable workflow fingerprints that require explicit approval before resuming across workflow changes.
+- Strict `samsarix.workflow/v1` definitions, embedded executable provenance, full/suffix planning, and
+  custom workflow execution through the Python API and CLI.
+- JSON Schema 2020-12 contracts plus checked-in editorial scene-revision and game quest-production
+  workflows.
 
 ### Changed
 

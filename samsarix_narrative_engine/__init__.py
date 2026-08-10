@@ -16,6 +16,7 @@ from .agents import (
     get_preset,
     getAgentConfig,
     workflow_fingerprint,
+    workflow_for_preset,
 )
 from .artifacts import dumps_run_bundle, load_run_bundle, loads_run_bundle
 from .engine import (
@@ -34,6 +35,7 @@ from .exceptions import (
 )
 from .models import (
     RUN_BUNDLE_SCHEMA,
+    WORKFLOW_SCHEMA,
     GenerationOptions,
     GenerationPlan,
     Message,
@@ -41,6 +43,9 @@ from .models import (
     ProviderResponse,
     StageResult,
     TokenUsage,
+    WorkflowDefinition,
+    WorkflowRunOptions,
+    WorkflowStage,
 )
 from .providers import (
     AnthropicProvider,
@@ -49,6 +54,12 @@ from .providers import (
     Provider,
     build_provider,
     provider_from_env,
+)
+from .workflows import (
+    build_workflow_plan,
+    dumps_workflow,
+    load_workflow,
+    loads_workflow,
 )
 
 __version__ = "0.1.0"
@@ -79,10 +90,15 @@ __all__ = [
     "RUN_BUNDLE_SCHEMA",
     "applyPresetMode",
     "build_plan",
+    "WORKFLOW_SCHEMA",
+    "WorkflowDefinition",
+    "WorkflowRunOptions",
+    "WorkflowStage",
     "build_resume_plan",
     "build_provider",
     "generate_narrative",
     "generateNarrative",
+    "build_workflow_plan",
     "getAgentConfig",
     "get_agent",
     "get_all_agents",
@@ -92,5 +108,9 @@ __all__ = [
     "load_run_bundle",
     "loads_run_bundle",
     "provider_from_env",
+    "dumps_workflow",
     "workflow_fingerprint",
+    "load_workflow",
+    "loads_workflow",
+    "workflow_for_preset",
 ]

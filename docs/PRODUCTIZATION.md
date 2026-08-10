@@ -34,19 +34,19 @@ release branches existed. Productization work is isolated on `codex/productize-n
 
 ## Chosen product
 
-Samsarix Narrative Engine is a small Python SDK and CLI for deterministic, inspectable,
-cost-bounded narrative-development workflows. A developer or technically comfortable writer supplies
-one creative brief and one explicitly configured text-model provider. The engine runs a named sequence
-of editorial stages and returns both a complete Markdown story and the intermediate artifacts with
-provider-reported usage.
+Samsarix Narrative Engine is a local-first Python SDK and CLI for deterministic, inspectable,
+cost-bounded narrative-production workflows. A developer, studio, or technically comfortable writer
+supplies creative material, one explicitly configured text-model provider, and either a built-in preset
+or strict portable workflow. The engine returns the final-stage deliverable and every intermediate with
+provider-reported usage and executable provenance.
 
 The primary journey is:
 
 1. Install the package with one provider extra.
 2. Run `samsarix-narrative plan` without credentials to inspect the exact call and output-token ceiling.
 3. set one provider key and run `samsarix-narrative generate` with a prompt or UTF-8 prompt file;
-4. receive a final story and, optionally, a JSON artifact record that identifies every provider call,
-   model, duration, cap, and reported token count.
+4. receive the final-stage output and, optionally, a versioned JSON run bundle that identifies every
+   provider call, model, duration, cap, reported token count, workflow definition, and branch parent.
 
 This is independently useful as a focused orchestration component and reference implementation. It
 does not reproduce a broader private platform, require a private Samsarix service, or compete with general-purpose
@@ -54,10 +54,10 @@ agent frameworks.
 
 ## Target user and use case
 
-The target user is a Python developer building a writing tool, editorial prototype, game-content
-pipeline, or local authoring automation who wants more control than one opaque prompt but does not need
-a general agent platform. The core use case is generating and inspecting one complete short-story draft
-with a predictable maximum number of paid calls.
+The target user is a Python developer, editorial team, or game-narrative studio building a writing tool,
+revision pipeline, quest workflow, or local authoring automation. The core use case is turning narrative
+material into reviewable, versioned stage artifacts with predictable paid-call ceilings and human
+edit/resume checkpoints.
 
 ## Product and architecture decisions
 
@@ -68,8 +68,9 @@ with a predictable maximum number of paid calls.
   provider the caller did not intend to use.
 - The dependency-free core accepts custom providers. OpenAI, Anthropic, and explicitly configured
   OpenAI-compatible endpoints are optional extras.
-- `quick`, `balanced`, and `polished` are bounded vertical slices. They use 2, 4, and 7 calls
-  respectively. Arbitrary agent multiplicity is intentionally removed.
+- `quick`, `balanced`, and `polished` are bounded vertical slices. Strict custom workflow definitions
+  support 1–20 ordered stages with explicit earlier-stage context edges; open-ended model-selected
+  multiplicity remains intentionally excluded.
 - Intermediate artifacts are first-class output. Synthetic UCF values, fake token counts, and
   model-authored numeric “quality” or “ethical approval” are removed.
 - The review stage is an editorial memo, not a safety certification. No model can establish ethical
@@ -158,7 +159,9 @@ final verification therefore uses the isolated project environment and fresh whe
 
 - [ ] Add a Google Gen AI Interactions adapter after its rapidly changing API surface is isolated and
   contract-tested.
-- [ ] Add resumable artifact input so a failed or edited workflow can restart from a named stage.
+- [x] Add resumable artifact input so an edited workflow can branch from a named stage.
+- [x] Add strict portable custom workflows, embedded provenance, schemas, and practical editorial/game
+  examples.
 - [ ] Add optional streaming for the final writer/reviser stage without weakening atomic artifact
   persistence.
 - [ ] Add a prompt/evaluation fixture corpus to compare revisions across provider/model upgrades.
@@ -168,6 +171,7 @@ final verification therefore uses the isolated project environment and fresh whe
 - [x] Select the product wedge and out-of-scope boundaries.
 - [x] Define a minimal provider protocol and typed public results.
 - [x] Implement bounded plans and preflight budget validation.
+- [x] Implement versioned editable run bundles, lineage, custom workflow loading, and suffix resume.
 - [x] Implement the core engine and optional provider adapters.
 - [x] Implement CLI plan/generate/help/version, cancellation, exit codes, and safe persistence.
 - [x] Replace mock-only tests.

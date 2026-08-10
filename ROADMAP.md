@@ -25,7 +25,7 @@ Near-term product wedge:
 
 ## Release candidate
 
-- Ship validated custom workflow specifications with useful manuscript, game-narrative, and editorial examples.
+- Keep the shipped custom workflow contract and manuscript/game-narrative examples backward compatible.
 - Add a falsifiable, blinded evaluation against a simpler single-call baseline.
 - Publish fixtures, limits, digests, and reproducible results without overstating conclusions.
 - Complete one documented pilot with a real consumer and capture measured time, cost, and acceptance signals.
@@ -37,7 +37,8 @@ Current hardening backlog:
 - Provider adapters are tested with injected clients, not owner-funded live calls against current models and accounts.
 - No comparative corpus, regression evaluation, real user pilot, or evidence yet shows that staged workflows outperform a simpler baseline enough to justify their cost.
 - Input-token cost is not bounded; model, API, and pricing churn require ongoing maintenance.
-- Versioned run bundles and edit/resume branching are implemented; custom workflow loading and evaluation tooling remain.
+- Versioned run bundles, edit/resume branching, and custom workflow loading are implemented; evaluation
+  tooling remains.
 - Final-stage streaming remains unimplemented and should follow demonstrated user demand.
 - Consumer writing products are crowded; differentiation depends on the narrative-operations workflow, not built-in presets alone.
 

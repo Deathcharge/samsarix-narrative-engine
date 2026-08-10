@@ -5,14 +5,17 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Optional
 
-from .models import GenerationPlan, PlannedStage
+from .models import (
+    GenerationPlan,
+    WorkflowDefinition,
+    WorkflowStage,
+)
+from .workflows import build_workflow_plan
 
 
 @dataclass(frozen=True)
@@ -159,6 +162,33 @@ def get_all_presets() -> Mapping[str, tuple[str, ...]]:
     return PRESETS
 
 
+def workflow_for_preset(preset: str) -> WorkflowDefinition:
+    """Return a portable workflow definition for one built-in preset."""
+
+    stage_ids = get_preset(preset)
+    if stage_ids is None:
+        choices = ", ".join(PRESETS)
+        raise ValueError(f"unknown preset '{preset}'; choose one of: {choices}")
+    return WorkflowDefinition(
+        workflow_id=preset,
+        name=f"Samsarix {preset.title()}",
+        stages=tuple(
+            WorkflowStage(
+                stage_id=agent_id,
+                role=AGENTS[agent_id].role,
+                system_prompt=AGENTS[agent_id].system_prompt,
+                max_output_tokens=AGENTS[agent_id].max_output_tokens,
+                context_from=tuple(
+                    dependency
+                    for dependency in AGENTS[agent_id].context_from
+                    if dependency in stage_ids
+                ),
+            )
+            for agent_id in stage_ids
+        ),
+    )
+
+
 def build_plan(preset: str) -> GenerationPlan:
     """Build the exact provider-call plan for a preset.
 
@@ -166,61 +196,20 @@ def build_plan(preset: str) -> GenerationPlan:
         ValueError: If ``preset`` is unknown.
     """
 
-    stage_ids = get_preset(preset)
-    if stage_ids is None:
-        choices = ", ".join(PRESETS)
-        raise ValueError(f"unknown preset '{preset}'; choose one of: {choices}")
-
-    stages = tuple(
-        PlannedStage(
-            stage_id=agent_id,
-            role=AGENTS[agent_id].role,
-            max_output_tokens=AGENTS[agent_id].max_output_tokens,
-        )
-        for agent_id in stage_ids
-    )
-    return GenerationPlan(preset=preset, stages=stages)
+    return build_workflow_plan(workflow_for_preset(preset))
 
 
 def build_resume_plan(preset: str, from_stage: str) -> GenerationPlan:
     """Build the suffix of a preset that will be rerun from ``from_stage``."""
 
-    plan = build_plan(preset)
-    stage_ids = tuple(stage.stage_id for stage in plan.stages)
-    try:
-        start = stage_ids.index(from_stage)
-    except ValueError as error:
-        choices = ", ".join(stage_ids)
-        raise ValueError(
-            f"stage '{from_stage}' is not in preset '{preset}'; choose one of: {choices}"
-        ) from error
-    return GenerationPlan(preset=preset, stages=plan.stages[start:])
+    return build_workflow_plan(workflow_for_preset(preset), from_stage)
 
 
-def workflow_fingerprint(preset: str) -> str:
-    """Return a stable digest of the exact built-in workflow definition."""
+def workflow_fingerprint(selection: str | WorkflowDefinition) -> str:
+    """Return the stable digest of a built-in or explicit workflow."""
 
-    plan = build_plan(preset)
-    definition = {
-        "preset": preset,
-        "stages": [
-            {
-                "stage_id": stage.stage_id,
-                "role": AGENTS[stage.stage_id].role,
-                "system_prompt": AGENTS[stage.stage_id].system_prompt,
-                "max_output_tokens": stage.max_output_tokens,
-                "context_from": list(AGENTS[stage.stage_id].context_from),
-            }
-            for stage in plan.stages
-        ],
-    }
-    encoded = json.dumps(
-        definition,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return f"sha256:{hashlib.sha256(encoded).hexdigest()}"
+    workflow = workflow_for_preset(selection) if isinstance(selection, str) else selection
+    return workflow.fingerprint
 
 
 # Compatibility helpers for the original 1.0 surface. New code should use the

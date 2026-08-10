@@ -63,7 +63,7 @@ def test_cli_plan_needs_no_provider(capsys: pytest.CaptureFixture[str]) -> None:
     assert payload["max_output_tokens"] == 2_600
 
     assert main(("plan", "--preset", "quick", "--from-stage", "critic")) == 2
-    assert "not in preset" in capsys.readouterr().err
+    assert "not in workflow" in capsys.readouterr().err
 
 
 def test_cli_generate_writes_story_and_artifacts_atomically(

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Optional
 
 from . import __version__
-from .agents import PRESETS, build_plan, build_resume_plan
+from .agents import PRESETS, workflow_for_preset
 from .artifacts import dumps_run_bundle, load_run_bundle
 from .engine import NarrativeEngine
 from .exceptions import (
@@ -26,8 +26,9 @@ from .exceptions import (
     OutputError,
     ProviderError,
 )
-from .models import GenerationOptions
+from .models import WorkflowDefinition, WorkflowRunOptions
 from .providers import Provider, build_provider
+from .workflows import build_workflow_plan, load_workflow
 
 ProviderFactory = Callable[..., Provider]
 
@@ -44,21 +45,32 @@ def _build_parser() -> argparse.ArgumentParser:
         "plan",
         help="show calls and output-token caps without using a provider",
     )
-    plan_parser.add_argument("--preset", choices=tuple(PRESETS), default="balanced")
+    plan_selection = plan_parser.add_mutually_exclusive_group()
+    plan_selection.add_argument("--preset", choices=tuple(PRESETS))
+    plan_selection.add_argument("--workflow", type=Path, help="validated workflow JSON file")
     plan_parser.add_argument(
         "--from-stage",
         help="show only the calls needed to resume from this stage",
     )
     plan_parser.add_argument("--json", action="store_true", dest="as_json")
 
-    generate_parser = subparsers.add_parser("generate", help="generate one complete short story")
+    generate_parser = subparsers.add_parser(
+        "generate",
+        help="run one built-in or custom narrative workflow",
+    )
     prompt_group = generate_parser.add_mutually_exclusive_group(required=True)
     prompt_group.add_argument("--prompt", help="creative brief; use --prompt-file for long prompts")
     prompt_group.add_argument(
         "--prompt-file",
         help="UTF-8 creative brief file, or - to read standard input",
     )
-    generate_parser.add_argument("--preset", choices=tuple(PRESETS), default="balanced")
+    generation_selection = generate_parser.add_mutually_exclusive_group()
+    generation_selection.add_argument("--preset", choices=tuple(PRESETS))
+    generation_selection.add_argument(
+        "--workflow",
+        type=Path,
+        help="validated workflow JSON file; defaults to the balanced preset",
+    )
     generate_parser.add_argument(
         "--provider",
         choices=("openai", "anthropic", "xai", "perplexity"),
@@ -69,7 +81,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default=os.getenv("SAMSARIX_MODEL"),
         help="provider model ID; defaults to a documented stable model",
     )
-    generate_parser.add_argument("--output", type=Path, help="write final Markdown story here")
+    generate_parser.add_argument("--output", type=Path, help="write the final stage output here")
     generate_parser.add_argument(
         "--artifacts",
         type=Path,
@@ -106,7 +118,9 @@ def _build_parser() -> argparse.ArgumentParser:
         default=os.getenv("SAMSARIX_PROVIDER", "openai"),
     )
     resume_parser.add_argument("--model", default=os.getenv("SAMSARIX_MODEL"))
-    resume_parser.add_argument("--output", type=Path, help="write branched Markdown story here")
+    resume_parser.add_argument(
+        "--output", type=Path, help="write the branched final-stage output here"
+    )
     resume_parser.add_argument(
         "--artifacts-out",
         type=Path,
@@ -117,6 +131,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="resume after reviewing changes to built-in prompts or stage definitions",
     )
+    resume_parser.add_argument(
+        "--workflow",
+        type=Path,
+        help=(
+            "reviewed replacement workflow; requires --allow-workflow-change if its digest differs"
+        ),
+    )
     resume_parser.add_argument("--force", action="store_true")
     resume_parser.add_argument("--timeout", type=float, default=90.0, dest="timeout_seconds")
     resume_parser.add_argument("--max-prompt-chars", type=int, default=12_000)
@@ -125,17 +146,30 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _render_plan(preset: str, as_json: bool, from_stage: Optional[str] = None) -> str:
-    try:
-        plan = build_resume_plan(preset, from_stage) if from_stage else build_plan(preset)
-    except ValueError as error:
-        raise InputValidationError(str(error)) from error
+def _select_workflow(
+    preset: Optional[str],
+    workflow_path: Optional[Path],
+) -> WorkflowDefinition:
+    if workflow_path is not None:
+        return load_workflow(workflow_path)
+    return workflow_for_preset(preset or "balanced")
+
+
+def _render_plan(
+    workflow: WorkflowDefinition,
+    as_json: bool,
+    from_stage: Optional[str] = None,
+) -> str:
+    plan = build_workflow_plan(workflow, from_stage)
     if as_json:
         payload = plan.to_dict()
+        payload["workflow_id"] = workflow.workflow_id
+        payload["workflow_name"] = workflow.name
+        payload["workflow_fingerprint"] = workflow.fingerprint
         if from_stage:
             payload["from_stage"] = from_stage
         return json.dumps(payload, indent=2)
-    rows = [f"Preset: {plan.preset}"]
+    rows = [f"Workflow: {workflow.name} ({workflow.workflow_id})"]
     if from_stage:
         rows.append(f"Resume from: {from_stage}")
     for index, stage in enumerate(plan.stages, start=1):
@@ -222,8 +256,8 @@ async def _generate(args: argparse.Namespace, provider_factory: ProviderFactory)
     _preflight_output(args.artifacts, force=args.force)
 
     prompt = _read_prompt(args)
-    options = GenerationOptions(
-        preset=args.preset,
+    workflow = _select_workflow(args.preset, args.workflow)
+    options = WorkflowRunOptions(
         timeout_seconds=args.timeout_seconds,
         max_prompt_chars=args.max_prompt_chars,
         max_calls=args.max_calls,
@@ -234,7 +268,7 @@ async def _generate(args: argparse.Namespace, provider_factory: ProviderFactory)
         model=args.model,
         timeout_seconds=args.timeout_seconds,
     )
-    result = await NarrativeEngine(provider).generate(prompt, options)
+    result = await NarrativeEngine(provider).run(prompt, workflow, options)
 
     story = result.content.rstrip() + "\n"
     if args.output is None:
@@ -253,7 +287,7 @@ async def _generate(args: argparse.Namespace, provider_factory: ProviderFactory)
     destination = str(args.output) if args.output is not None else "standard output"
     print(
         f"Generated {result.generation_id}: {len(result.stages)} calls, "
-        f"{token_summary} total tokens; story written to {destination}.",
+        f"{token_summary} total tokens; result written to {destination}.",
         file=sys.stderr,
     )
     return 0
@@ -270,8 +304,8 @@ async def _resume(args: argparse.Namespace, provider_factory: ProviderFactory) -
     _preflight_output(args.artifacts_out, force=args.force)
 
     previous = load_run_bundle(args.artifacts_in)
-    options = GenerationOptions(
-        preset=previous.preset,
+    selected_workflow = load_workflow(args.workflow) if args.workflow is not None else None
+    options = WorkflowRunOptions(
         timeout_seconds=args.timeout_seconds,
         max_prompt_chars=args.max_prompt_chars,
         max_calls=args.max_calls,
@@ -287,6 +321,7 @@ async def _resume(args: argparse.Namespace, provider_factory: ProviderFactory) -
         args.from_stage,
         options,
         allow_workflow_change=args.allow_workflow_change,
+        workflow=selected_workflow,
     )
 
     story = result.content.rstrip() + "\n"
@@ -297,7 +332,10 @@ async def _resume(args: argparse.Namespace, provider_factory: ProviderFactory) -
     if args.artifacts_out is not None:
         _atomic_write(args.artifacts_out, dumps_run_bundle(result), force=args.force)
 
-    resumed_plan = build_resume_plan(previous.preset, args.from_stage)
+    executed_workflow = result.workflow
+    if executed_workflow is None:
+        raise InputValidationError("resumed result does not contain a workflow definition")
+    resumed_plan = build_workflow_plan(executed_workflow, args.from_stage)
     resumed_stages = result.stages[-resumed_plan.max_calls :]
     resumed_tokens = sum(stage.usage.total_tokens for stage in resumed_stages)
     token_summary = str(resumed_tokens) if resumed_tokens else "unreported"
@@ -305,7 +343,7 @@ async def _resume(args: argparse.Namespace, provider_factory: ProviderFactory) -
     print(
         f"Resumed {previous.generation_id} from {args.from_stage} as {result.generation_id}: "
         f"{resumed_plan.max_calls} new calls, {token_summary} new total tokens; "
-        f"story written to {destination}.",
+        f"result written to {destination}.",
         file=sys.stderr,
     )
     return 0
@@ -321,7 +359,8 @@ def main(
     args = _build_parser().parse_args(argv)
     try:
         if args.command == "plan":
-            print(_render_plan(args.preset, args.as_json, args.from_stage))
+            workflow = _select_workflow(args.preset, args.workflow)
+            print(_render_plan(workflow, args.as_json, args.from_stage))
             return 0
         if args.command == "resume":
             return asyncio.run(_resume(args, provider_factory))

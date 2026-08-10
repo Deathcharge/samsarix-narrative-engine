@@ -15,16 +15,22 @@ and immutable for the engine instance.
 Validates input and the complete plan before the first provider call, runs stages in order, and returns a
 `NarrativeResult`. It raises an exception on failure and never represents a partial draft as success.
 
-### `await NarrativeEngine.resume(previous, from_stage, options=None, *, allow_workflow_change=False)`
+### `await NarrativeEngine.run(prompt, workflow, options=None)`
+
+Runs a validated `WorkflowDefinition` with `WorkflowRunOptions`. Unlike `generate`, this method does not
+select a built-in preset. The final stage becomes `NarrativeResult.content`, while every intermediate is
+retained in `stages` and the exact workflow is embedded in the result.
+
+### `await NarrativeEngine.resume(previous, from_stage, options=None, *, workflow=None, allow_workflow_change=False)`
 
 Creates a new branch from a loaded or in-memory `NarrativeResult`. Stages before `from_stage` are reused;
-that stage and every successor in the preset execute again. The previous result is never mutated. Call
-and output-token limits apply to the new suffix only.
+that stage and every successor in the embedded or explicitly supplied workflow execute again. The
+previous result is never mutated. Call and output-token limits apply to the new suffix only.
 
-Resume validates that prior stages form the exact ordered preset prefix and that the recorded workflow
-fingerprint matches the installed prompts, context edges, roles, and token caps. Set
-`allow_workflow_change=True` only after reviewing those changes. The result records
-`parent_generation_id` and `resumed_from_stage`.
+Resume validates the reusable prefix and the workflow fingerprint. A replacement `workflow` must retain
+the same ID. Set `allow_workflow_change=True` only after reviewing a changed suffix; stages before
+`from_stage` must remain byte-for-byte equivalent because their old artifacts are reused. The result
+records `parent_generation_id` and `resumed_from_stage`.
 
 ### `await generate_narrative(prompt, provider, options=None)`
 
@@ -50,6 +56,37 @@ Immutable dataclass fields:
 | `max_calls` | `7` | 1–20 and at least the selected plan's calls |
 | `max_total_output_tokens` | `10000` | 1–100000 and at least the plan's summed caps |
 
+### `WorkflowRunOptions`
+
+Provides the same timeout, prompt, call, and aggregate output-token bounds as `GenerationOptions` without
+a `preset` field. It is accepted by `NarrativeEngine.run` and `NarrativeEngine.resume`.
+
+## Workflow definitions
+
+### `WorkflowStage`
+
+Immutable stage fields are `stage_id`, `role`, `system_prompt`, `max_output_tokens`, and
+`context_from`. IDs are lowercase portable identifiers. A stage can receive only named earlier-stage
+artifacts; forward references, self references, and duplicates are invalid. One stage can request at
+most 32,768 output tokens.
+
+### `WorkflowDefinition`
+
+Contains `workflow_id`, `name`, and 1–20 ordered `WorkflowStage` values. Its aggregate output caps cannot
+exceed 100,000. `fingerprint` is a stable SHA-256 digest of the complete portable definition, including
+its schema version.
+
+### `loads_workflow(payload)` / `load_workflow(path)` / `dumps_workflow(workflow)`
+
+Strictly load or serialize `samsarix.workflow/v1` JSON. Workflow files are limited to 1 MiB, unknown or
+missing fields are rejected, and values are never type-coerced. Structural JSON Schema is published at
+`schemas/workflow-v1.schema.json`; dependency order and aggregate caps are runtime invariants.
+
+### `build_workflow_plan(workflow, from_stage=None)`
+
+Returns the full provider-call plan or the exact suffix beginning at `from_stage` without constructing a
+provider. `workflow_for_preset(preset)` exposes any built-in preset as the same portable definition.
+
 ### `build_plan(preset)`
 
 Returns a `GenerationPlan` without constructing a provider or making a network request. Its
@@ -61,10 +98,10 @@ policy checks, and UI display.
 Returns the exact suffix that a resume operation will execute. It supports approval and remaining-spend
 preflight without constructing a provider.
 
-### `workflow_fingerprint(preset)`
+### `workflow_fingerprint(preset_or_workflow)`
 
-Returns a stable SHA-256 digest over the ordered built-in stages, prompts, context edges, roles, and
-output caps. It detects semantic workflow drift; it is not a signature or proof of authorship.
+Returns the definition fingerprint for a built-in preset name or explicit `WorkflowDefinition`. It
+detects workflow drift; it is not a signature or proof of authorship.
 
 ### Registries
 
@@ -80,8 +117,10 @@ Immutable fields:
 
 - `generation_id`: random `nar_` identifier; not a database key or proof of persistence;
 - `created_at`: UTC ISO-8601 completion timestamp;
-- `preset`, `title`, `content`, and the original `creative_brief`;
-- `workflow_fingerprint`: exact built-in workflow digest;
+- `workflow_id`: the explicit built-in or custom workflow ID;
+- `preset`: the same value retained for 0.1 compatibility;
+- `title`, `content`, and the original `creative_brief`;
+- `workflow` and `workflow_fingerprint`: exact executable definition and digest;
 - `parent_generation_id` and `resumed_from_stage`: both null for an original run and both populated for
   a branch;
 - `stages`: ordered tuple of `StageResult` artifacts.
@@ -109,14 +148,16 @@ SDK fields; custom providers must not invent counts. Supports addition and `to_d
 ### `dumps_run_bundle(result)`
 
 Returns UTF-8-compatible JSON text for a strictly valid `samsarix.run/v1` bundle. It includes the
-creative brief and all generated content, so callers must treat it as private story material.
+creative brief, complete workflow definition, and all generated content, so callers must treat it as
+private story material.
 
 ### `loads_run_bundle(payload)` / `load_run_bundle(path)`
 
 Strictly validate and load a JSON string or UTF-8 file into `NarrativeResult`. Loading does not contact a
-provider. Bundles are limited to 16 MiB; fields are not type-coerced; stage identifiers must be unique;
-aggregate usage must match stage usage; and malformed schema, timestamps, lineage, content, or token
-counts raise `InputValidationError`.
+provider. Bundles are limited to 16 MiB; fields are not type-coerced; unknown fields are rejected; the
+workflow ID, fingerprint, stage order, roles, caps, final content, and aggregate usage must agree; and
+malformed schema, timestamps, lineage, content, or token counts raise `InputValidationError`. Structural
+JSON Schema is published at `schemas/run-v1.schema.json`.
 
 ## Provider contract
 

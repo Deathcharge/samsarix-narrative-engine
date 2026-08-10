@@ -57,7 +57,7 @@ def test_unknown_registry_values_are_explicit() -> None:
     assert get_preset("missing") is None
     with pytest.raises(ValueError, match="unknown preset"):
         build_plan("missing")
-    with pytest.raises(ValueError, match="not in preset"):
+    with pytest.raises(ValueError, match="not in workflow"):
         build_resume_plan("quick", "critic")
 
 

@@ -44,7 +44,7 @@ samsarix-narrative plan --preset balanced
 Expected structure:
 
 ```text
-Preset: balanced
+Workflow: Samsarix Balanced (balanced)
 1. architect - Story architect (max 1000 output tokens)
 2. character - Character editor (max 800 output tokens)
 3. world - World and continuity editor (max 800 output tokens)
@@ -89,8 +89,9 @@ samsarix-narrative generate --prompt-file brief.txt --preset balanced --output s
 ```
 
 `story.md` contains only the final model output. `run.json` is a versioned run bundle containing the
-original brief, workflow fingerprint, final story, every stage, lineage, model IDs, durations, configured
-output caps, and provider-reported token counts. Treat it as private story material.
+original brief, exact workflow definition and fingerprint, final story, every stage, lineage, model IDs,
+durations, configured output caps, and provider-reported token counts. Treat it as private story
+material.
 
 If a destination already exists, generation exits with code 4 before provider construction or paid API
 use. Add `--force` only when replacement is intentional.
@@ -121,7 +122,26 @@ call and preserves the accepted architect, character, and world stages:
 samsarix-narrative resume --artifacts-in review.json --from-stage writer --output branch.md --artifacts-out branch.json --max-calls 1 --max-total-output-tokens 2600
 ```
 
-## 6. Handle ordinary failures
+## 6. Run a real custom workflow
+
+Custom workflow files use `samsarix.workflow/v1` and declare ordered stages, prompts, output caps, and
+explicit earlier-stage dependencies. Inspect the checked-in game quest workflow without a key:
+
+```bash
+samsarix-narrative plan --workflow examples/workflows/game-quest-production.json --json
+```
+
+Its five stages request at most 7,600 output tokens. Run it only after confirming that budget:
+
+```bash
+samsarix-narrative generate --workflow examples/workflows/game-quest-production.json --prompt-file quest-brief.md --output quest-packet.md --artifacts quest-run.json --max-calls 5 --max-total-output-tokens 7600
+```
+
+The final `handoff` stage is written to `quest-packet.md`, and every stage plus the exact executable
+workflow is retained in `quest-run.json`. Review workflow files like code: structural validation does
+not make an unknown system prompt trustworthy.
+
+## 7. Handle ordinary failures
 
 - Missing key or optional SDK: exit 2 with the required environment variable or install extra.
 - Empty/oversized prompt or insufficient call/token budget: exit 2 before a provider call.
@@ -135,7 +155,7 @@ Provider errors are intentionally sanitized. In a trusted Python integration, th
 exception remains available as the exception cause for debugging; do not expose it to end users without
 review.
 
-## 7. Use the Python API
+## 8. Use the Python API
 
 ```python
 import asyncio

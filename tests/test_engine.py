@@ -319,7 +319,7 @@ async def test_resume_rejects_changed_workflow_without_explicit_review() -> None
 @pytest.mark.parametrize(
     ("from_stage", "options", "message"),
     (
-        ("missing", GenerationOptions(preset="quick"), "not in preset"),
+        ("missing", GenerationOptions(preset="quick"), "not in workflow"),
         ("writer", GenerationOptions(preset="balanced"), "must match"),
         ("", GenerationOptions(preset="quick"), "non-empty"),
     ),
