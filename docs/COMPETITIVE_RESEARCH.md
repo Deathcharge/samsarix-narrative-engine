@@ -1,6 +1,6 @@
 # Competitive research and product direction
 
-**Research date:** 2026-08-08
+**Research date:** 2026-08-10
 **Status:** Directional desk research, not market validation
 
 This note records the evidence behind the near-term product direction. It deliberately avoids market-size,
@@ -15,6 +15,7 @@ quality, and adoption claims that have not been measured.
 | Planning software | Plottr advertises visual timelines, scene cards, story bibles, templates, and series organization. | Professional users need structured planning artifacts and cross-project continuity, not only final prose. |
 | Agent infrastructure | LangGraph documents durable execution, persistence, and human-in-the-loop interrupts. | Developers already expect workflows to pause, survive, accept review, and resume deterministically. |
 | Interchange and telemetry | JSON Schema 2020-12 and OpenTelemetry semantic conventions provide mature standards for validation and observability. | Samsarix should use explicit, versioned contracts and interoperable telemetry instead of bespoke claims. |
+| LLM evaluation platforms | OpenAI exposes reusable eval definitions/runs, while LangSmith documents offline datasets, human review, pairwise comparison, and randomized order. | A credible local tool should preserve the evaluated evidence, blind treatment identity, and avoid claiming that descriptive scores prove general quality. |
 
 Sources:
 
@@ -27,6 +28,10 @@ Sources:
   [human-in-the-loop](https://docs.langchain.com/oss/python/langchain/human-in-the-loop)
 - [JSON Schema specification](https://json-schema.org/specification)
 - [OpenTelemetry semantic conventions](https://opentelemetry.io/docs/specs/semconv/)
+- [OpenAI Evals API](https://platform.openai.com/docs/api-reference/evals)
+- [LangSmith evaluation concepts](https://docs.langchain.com/langsmith/evaluation-concepts) and
+  [pairwise evaluation](https://docs.langchain.com/langsmith/evaluate-pairwise)
+- [Anthropic success criteria](https://docs.anthropic.com/en/docs/test-and-evaluate/define-success)
 
 These pages describe vendor capabilities, not independent evidence of product quality or customer demand.
 
@@ -76,8 +81,8 @@ configuration selected by the user.
    and suffix-only budget preflight.
 2. **Implemented:** bounded custom workflow specifications with explicit dependencies, portable schemas,
    and checked-in editorial and game-narrative examples.
-3. **Next:** deterministic evaluation manifests, blinded review packets, scoring import, and comparison
-   reports.
+3. **Implemented:** deterministic evaluation manifests, blinded review packets, strict score import,
+   evidence fingerprints, and comparison reports.
 4. **Then:** structured story-bible/continuity artifacts and optional OpenTelemetry-compatible events,
    driven by pilot needs.
 5. **Later, only with evidence:** hosted collaboration, streaming, visual editing, or vendor-specific

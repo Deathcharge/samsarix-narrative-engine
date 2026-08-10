@@ -159,6 +159,41 @@ workflow ID, fingerprint, stage order, roles, caps, final content, and aggregate
 malformed schema, timestamps, lineage, content, or token counts raise `InputValidationError`. Structural
 JSON Schema is published at `schemas/run-v1.schema.json`.
 
+## Evaluation
+
+### `EvaluationManifest` and component dataclasses
+
+`EvaluationManifest` contains an ID, title, fixed seed, 1-8 `RubricCriterion` values, and 1-100
+`EvaluationCase` values. Every case contains exactly two `EvaluationTreatment` references, every case
+must use the same treatment IDs, and run-bundle paths are portable relative paths.
+
+`load_evaluation_manifest(path)` strictly loads `samsarix.evaluation/v1` JSON with a 2 MiB file ceiling.
+Unknown/missing fields, invalid identifiers, unsafe paths, duplicate criteria/cases/treatments, and
+inconsistent treatments raise `InputValidationError`.
+
+### `prepare_evaluation(manifest, base_directory)`
+
+Loads both completed run bundles per case, requires identical creative briefs within the pair, assigns
+treatments to A/B using SHA-256 over the fixed seed/case/treatment identity, and returns
+`PreparedEvaluation`. Its fields are `packet_markdown`, `key_json`, `scores_json`, and
+`evidence_fingerprint`. It makes no provider call.
+
+The packet excludes provider/model/workflow/treatment metadata. The private key retains canonical run
+and content digests, workflow provenance, generation identity, calls, requested output caps, timing,
+usage, providers, and models. The score sheet is incomplete by design until a reviewer supplies all
+1-5 scores and A/B/tie preferences.
+
+### `build_evaluation_report(key_path, scores_path)`
+
+Strictly validates a complete `samsarix.scores/v1` sheet, recomputes the private key's evidence
+fingerprint, unblinds case results, and returns `EvaluationReport` with `markdown`, `json_text`, and the
+fingerprint. Aggregates are arithmetic rubric means, preference/tie counts, completed calls, requested
+output caps, provider-reported usage, and duration. They are not statistical inference or cost quotes.
+
+Structural contracts are published at `schemas/evaluation-v1.schema.json` and
+`schemas/scores-v1.schema.json`. The evidence fingerprint detects inconsistent evidence but is not a
+signature or proof of authorship.
+
 ## Provider contract
 
 ```python

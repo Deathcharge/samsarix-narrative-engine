@@ -1,0 +1,51 @@
+{
+  "schema": "samsarix.evaluation/v1",
+  "id": "quest-workflow-comparison",
+  "title": "Quest workflow comparison",
+  "seed": "replace-with-a-recorded-project-seed",
+  "rubric": [
+    {
+      "id": "brief_fidelity",
+      "label": "Brief fidelity",
+      "description": "Fulfills the supplied constraints without contradicting the creative brief."
+    },
+    {
+      "id": "continuity",
+      "label": "Continuity",
+      "description": "Maintains coherent facts, motivations, causal links, and world rules."
+    },
+    {
+      "id": "readiness",
+      "label": "Production readiness",
+      "description": "Requires little editorial repair before use in the intended product."
+    }
+  ],
+  "cases": [
+    {
+      "id": "harbor-quest",
+      "treatments": [
+        {
+          "id": "baseline",
+          "run_bundle": "runs/harbor-quest-baseline.json"
+        },
+        {
+          "id": "candidate",
+          "run_bundle": "runs/harbor-quest-candidate.json"
+        }
+      ]
+    },
+    {
+      "id": "observatory-quest",
+      "treatments": [
+        {
+          "id": "baseline",
+          "run_bundle": "runs/observatory-quest-baseline.json"
+        },
+        {
+          "id": "candidate",
+          "run_bundle": "runs/observatory-quest-candidate.json"
+        }
+      ]
+    }
+  ]
+}

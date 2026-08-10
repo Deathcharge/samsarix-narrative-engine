@@ -11,7 +11,7 @@ import json
 import os
 import sys
 import tempfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Optional
 
@@ -19,6 +19,11 @@ from . import __version__
 from .agents import PRESETS, workflow_for_preset
 from .artifacts import dumps_run_bundle, load_run_bundle
 from .engine import NarrativeEngine
+from .evaluation import (
+    build_evaluation_report,
+    load_evaluation_manifest,
+    prepare_evaluation,
+)
 from .exceptions import (
     BudgetExceededError,
     ConfigurationError,
@@ -143,6 +148,34 @@ def _build_parser() -> argparse.ArgumentParser:
     resume_parser.add_argument("--max-prompt-chars", type=int, default=12_000)
     resume_parser.add_argument("--max-calls", type=int, default=7)
     resume_parser.add_argument("--max-total-output-tokens", type=int, default=10_000)
+
+    evaluate_parser = subparsers.add_parser(
+        "evaluate",
+        help="prepare a blinded pairwise review or aggregate its completed scores",
+    )
+    evaluate_commands = evaluate_parser.add_subparsers(
+        dest="evaluation_command",
+        required=True,
+    )
+    prepare_parser = evaluate_commands.add_parser(
+        "prepare",
+        help="create a blind packet, private key, and editable score sheet",
+    )
+    prepare_parser.add_argument("--manifest", required=True, type=Path)
+    prepare_parser.add_argument("--packet", required=True, type=Path)
+    prepare_parser.add_argument("--key", required=True, type=Path)
+    prepare_parser.add_argument("--scores", required=True, type=Path)
+    prepare_parser.add_argument("--force", action="store_true")
+
+    report_parser = evaluate_commands.add_parser(
+        "report",
+        help="unblind a completed score sheet and write Markdown and JSON reports",
+    )
+    report_parser.add_argument("--key", required=True, type=Path)
+    report_parser.add_argument("--scores", required=True, type=Path)
+    report_parser.add_argument("--output", required=True, type=Path)
+    report_parser.add_argument("--json-output", required=True, type=Path)
+    report_parser.add_argument("--force", action="store_true")
     return parser
 
 
@@ -246,6 +279,59 @@ def _atomic_write(path: Path, content: str, *, force: bool) -> None:
             except OSError:
                 pass
         raise OutputError(f"cannot write output ({type(error).__name__}): {path}") from error
+
+
+def _require_distinct_paths(named_paths: Mapping[str, Path]) -> None:
+    resolved: dict[Path, str] = {}
+    for label, path in named_paths.items():
+        selected = path.resolve()
+        if selected in resolved:
+            raise OutputError(f"{resolved[selected]} and {label} must name different files")
+        resolved[selected] = label
+
+
+def _evaluate(args: argparse.Namespace) -> int:
+    if args.evaluation_command == "prepare":
+        _require_distinct_paths(
+            {
+                "--manifest": args.manifest,
+                "--packet": args.packet,
+                "--key": args.key,
+                "--scores": args.scores,
+            }
+        )
+        for output in (args.packet, args.key, args.scores):
+            _preflight_output(output, force=args.force)
+        manifest = load_evaluation_manifest(args.manifest)
+        prepared = prepare_evaluation(manifest, args.manifest.resolve().parent)
+        _atomic_write(args.packet, prepared.packet_markdown, force=args.force)
+        _atomic_write(args.key, prepared.key_json, force=args.force)
+        _atomic_write(args.scores, prepared.scores_json, force=args.force)
+        print(
+            f"Prepared {manifest.evaluation_id}: {len(manifest.cases)} blinded cases; "
+            f"keep the unblinding key private ({prepared.evidence_fingerprint}).",
+            file=sys.stderr,
+        )
+        return 0
+
+    _require_distinct_paths(
+        {
+            "--key": args.key,
+            "--scores": args.scores,
+            "--output": args.output,
+            "--json-output": args.json_output,
+        }
+    )
+    for output in (args.output, args.json_output):
+        _preflight_output(output, force=args.force)
+    report = build_evaluation_report(args.key, args.scores)
+    _atomic_write(args.output, report.markdown, force=args.force)
+    _atomic_write(args.json_output, report.json_text, force=args.force)
+    print(
+        f"Wrote unblinded evaluation report ({report.evidence_fingerprint}).",
+        file=sys.stderr,
+    )
+    return 0
 
 
 async def _generate(args: argparse.Namespace, provider_factory: ProviderFactory) -> int:
@@ -364,6 +450,8 @@ def main(
             return 0
         if args.command == "resume":
             return asyncio.run(_resume(args, provider_factory))
+        if args.command == "evaluate":
+            return _evaluate(args)
         return asyncio.run(_generate(args, provider_factory))
     except (ConfigurationError, InputValidationError, BudgetExceededError) as error:
         print(f"error: {error}", file=sys.stderr)

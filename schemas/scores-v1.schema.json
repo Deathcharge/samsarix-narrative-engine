@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Samsarix Blinded Score Sheet v1",
+  "description": "Editable score sheet generated from an evaluation manifest and completed run bundles.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "evidence_fingerprint", "reviewer", "cases"],
+  "properties": {
+    "schema": {
+      "const": "samsarix.scores/v1"
+    },
+    "evidence_fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "reviewer": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    }
+  },
+  "$defs": {
+    "rating": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 8,
+      "additionalProperties": {
+        "type": ["integer", "null"],
+        "minimum": 1,
+        "maximum": 5
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "ratings", "preference", "notes"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9._-]{0,63}$"
+        },
+        "ratings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["A", "B"],
+          "properties": {
+            "A": {
+              "$ref": "#/$defs/rating"
+            },
+            "B": {
+              "$ref": "#/$defs/rating"
+            }
+          }
+        },
+        "preference": {
+          "type": ["string", "null"],
+          "enum": ["A", "B", "tie", null]
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 5000
+        }
+      }
+    }
+  }
+}

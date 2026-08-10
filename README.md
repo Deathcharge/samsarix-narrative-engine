@@ -24,6 +24,8 @@ General agent frameworks already solve open-ended delegation. Narrative Engine d
   provider-reported token usage;
 - versioned run bundles can be edited between stages and resumed as traceable branches without paying
   to regenerate accepted work;
+- completed bundles can be compared through deterministic A/B packets, private unblinding keys, strict
+  score sheets, and evidence-backed Markdown/JSON reports;
 - the core package has no runtime dependency and accepts custom async providers.
 
 It is a package and CLI, not a web service. Authentication, databases, subscriptions, cloud deployment,
@@ -91,6 +93,8 @@ samsarix-narrative plan --preset polished --json
 samsarix-narrative plan --preset polished --from-stage writer --json
 samsarix-narrative generate --prompt-file brief.txt --provider anthropic --preset quick
 samsarix-narrative resume --artifacts-in run.json --from-stage writer --artifacts-out branch.json
+samsarix-narrative evaluate prepare --manifest evaluation/manifest.json --packet packet.md --key key.json --scores scores.json
+samsarix-narrative evaluate report --key key.json --scores scores.json --output report.md --json-output report.json
 ```
 
 `--prompt-file -` reads UTF-8 text from standard input. Without `--output`, the final stage output is
@@ -156,6 +160,25 @@ The resumed run reuses only the ordered stages before `--from-stage`, applies ca
 new suffix, and records `parent_generation_id` plus `resumed_from_stage`. It refuses a changed workflow
 fingerprint unless `--allow-workflow-change` is explicitly supplied after prompt changes are reviewed.
 The input and output bundles must be different files, preserving the parent as a rollback point.
+
+## Blinded evaluation
+
+Compare two workflow, model, provider, or prompt treatments without exposing their identities to the
+reviewer. A strict `samsarix.evaluation/v1` manifest references completed run bundles for the same
+creative brief, declares a fixed seed and 1-8 criteria, and uses the same two treatment IDs across every
+case.
+
+```bash
+samsarix-narrative evaluate prepare --manifest evaluation/manifest.json --packet evaluation/packet.md --key evaluation/private-key.json --scores evaluation/scores.json
+# Give packet.md and scores.json to the reviewer, but keep private-key.json private.
+samsarix-narrative evaluate report --key evaluation/private-key.json --scores evaluation/scores.json --output evaluation/report.md --json-output evaluation/report.json
+```
+
+Preparation and reporting are local, deterministic, and credential-free. The report recomputes an
+evidence fingerprint before unblinding, then summarizes rubric means, preferences/ties, calls, requested
+output caps, provider-reported tokens, and durations. These are descriptive results, not statistical
+proof of general quality. See [EVALUATION.md](docs/EVALUATION.md) for the complete method, privacy
+boundary, checked-in template, and interpretation limits.
 
 ## Python API
 
@@ -274,12 +297,13 @@ plus Python 3.12 on Linux. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workfl
 
 - `agents.py` contains immutable stage definitions and presets.
 - `artifacts.py` validates portable, size-bounded run bundles.
+- `evaluation.py` prepares deterministic blind packets and validates/unblinds completed score sheets.
 - `workflows.py` strictly loads portable definitions and builds full or suffix plans.
 - `engine.py` validates the entire plan before running code-orchestrated stages.
 - `providers.py` defines the provider protocol and optional bounded adapters.
 - `models.py` contains immutable, serializable plans, usage, stages, and results.
 - `cli.py` handles non-interactive input, status separation, exit codes, and atomic persistence.
-- `schemas/` contains JSON Schema 2020-12 contracts for external tooling.
+- `schemas/` contains JSON Schema 2020-12 workflow, run, evaluation, and score-sheet contracts.
 
 There is no hidden persistence, cache, telemetry, background worker, or Samsarix service dependency.
 
@@ -291,6 +315,8 @@ There is no hidden persistence, cache, telemetry, background worker, or Samsarix
 - The package writes generated content only when an output/artifact path is explicitly supplied. A full
   run bundle contains the original creative brief, generated content, and lineage; store or share it as
   private story material.
+- Blinded packets still contain creative briefs and generated content. Keep evaluation keys private
+  during review; evidence fingerprints detect inconsistent edits but are not signatures.
 - User story material is serialized as text context. The engine exposes no tools, shell execution,
   retrieval, or filesystem access to models.
 - Custom workflow system prompts are executable configuration. Review workflow files like code and do

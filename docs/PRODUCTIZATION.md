@@ -164,7 +164,8 @@ final verification therefore uses the isolated project environment and fresh whe
   examples.
 - [ ] Add optional streaming for the final writer/reviser stage without weakening atomic artifact
   persistence.
-- [ ] Add a prompt/evaluation fixture corpus to compare revisions across provider/model upgrades.
+- [x] Add deterministic pairwise evaluation manifests, blind packets, strict score import, and
+  evidence-backed reports; a larger production fixture corpus still depends on pilot material.
 
 ## Implementation checklist
 

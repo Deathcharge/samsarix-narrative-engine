@@ -141,7 +141,26 @@ The final `handoff` stage is written to `quest-packet.md`, and every stage plus 
 workflow is retained in `quest-run.json`. Review workflow files like code: structural validation does
 not make an unknown system prompt trustworthy.
 
-## 7. Handle ordinary failures
+## 7. Compare two treatments without revealing them
+
+After generating baseline and candidate run bundles for the same briefs, copy
+`examples/evaluations/manifest.template.json` into a working directory and update its relative paths.
+Prepare a deterministic packet without credentials or provider calls:
+
+```bash
+samsarix-narrative evaluate prepare --manifest evaluation/manifest.json --packet evaluation/packet.md --key evaluation/private-key.json --scores evaluation/scores.json
+```
+
+Give the reviewer `packet.md` and `scores.json`, retain `private-key.json` privately, and replace every
+null score with 1-5 plus every null preference with A, B, or tie. Then unblind:
+
+```bash
+samsarix-narrative evaluate report --key evaluation/private-key.json --scores evaluation/scores.json --output evaluation/report.md --json-output evaluation/report.json
+```
+
+Read [EVALUATION.md](EVALUATION.md) before interpreting the arithmetic summary as evidence.
+
+## 8. Handle ordinary failures
 
 - Missing key or optional SDK: exit 2 with the required environment variable or install extra.
 - Empty/oversized prompt or insufficient call/token budget: exit 2 before a provider call.
@@ -155,7 +174,7 @@ Provider errors are intentionally sanitized. In a trusted Python integration, th
 exception remains available as the exception cause for debugging; do not expose it to end users without
 review.
 
-## 8. Use the Python API
+## 9. Use the Python API
 
 ```python
 import asyncio

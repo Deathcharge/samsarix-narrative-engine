@@ -19,6 +19,8 @@ published.
   custom workflow execution through the Python API and CLI.
 - JSON Schema 2020-12 contracts plus checked-in editorial scene-revision and game quest-production
   workflows.
+- Deterministic `samsarix.evaluation/v1` pairwise manifests, blinded Markdown review packets, private
+  unblinding evidence, strict `samsarix.scores/v1` score sheets, and Markdown/JSON comparison reports.
 
 ### Changed
 
