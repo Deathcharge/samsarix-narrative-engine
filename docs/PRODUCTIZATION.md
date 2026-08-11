@@ -30,7 +30,9 @@ provide a usable release:
 
 The initial branch was `main` at `656dbc6`, matching `origin/main`. `git status --short --branch` was
 clean. One remote tracking branch existed (`origin/dependabot/pip/pip-c269d3ef21`); no tags or local
-release branches existed. Productization work is isolated on `codex/productize-narrative-engine`.
+release branches existed. Initial productization was isolated on
+`codex/productize-narrative-engine`; differentiated product work continues on
+`codex/competitive-offering`.
 
 ## Chosen product
 
@@ -44,9 +46,11 @@ The primary journey is:
 
 1. Install the package with one provider extra.
 2. Run `samsarix-narrative plan` without credentials to inspect the exact call and output-token ceiling.
-3. set one provider key and run `samsarix-narrative generate` with a prompt or UTF-8 prompt file;
+3. Set one provider key and run `samsarix-narrative generate` with a prompt or UTF-8 prompt file.
 4. receive the final-stage output and, optionally, a versioned JSON run bundle that identifies every
    provider call, model, duration, cap, reported token count, workflow definition, and branch parent.
+5. Compare two completed treatments through a deterministic blinded packet and an evidence-backed
+   unblinded report without making another provider call.
 
 This is independently useful as a focused orchestration component and reference implementation. It
 does not reproduce a broader private platform, require a private Samsarix service, or compete with general-purpose
@@ -79,6 +83,8 @@ edit/resume checkpoints.
   logs. Provider errors are sanitized at the public boundary.
 - Provider timeouts, disabled automatic retries, call caps, output-token caps, cancellation, and
   preflighted atomic output writes bound ordinary failure and cost paths.
+- Pairwise evaluation keeps treatment metadata out of the review packet, binds run/rubric evidence to a
+  reproducible fingerprint, and reports descriptive scores without turning them into a quality claim.
 - The product is a package and CLI, not a network service. Authentication, databases, containers,
   Kubernetes, billing, and hosted health endpoints remain out of scope.
 
@@ -175,6 +181,8 @@ final verification therefore uses the isolated project environment and fresh whe
 - [x] Implement versioned editable run bundles, lineage, custom workflow loading, and suffix resume.
 - [x] Implement the core engine and optional provider adapters.
 - [x] Implement CLI plan/generate/help/version, cancellation, exit codes, and safe persistence.
+- [x] Implement deterministic blinded evaluation preparation, strict score import, and comparison
+  reporting.
 - [x] Replace mock-only tests.
 - [x] Consolidate developer tooling and add CI.
 - [x] Rewrite README and accurate supporting docs.
@@ -206,8 +214,9 @@ final verification therefore uses the isolated project environment and fresh whe
 - Added the `samsarix-narrative` CLI with dry planning, UTF-8 input, overwrite preflight, atomic writes,
   provider accounting, and meaningful exits.
 - Removed the unpackageable duplicate advanced-features module and fake metrics from the public path.
-- Replaced 48 mock-only tests with 66 production-path tests covering plans, presets, bounds, adapters,
-  failure sanitation, CLI behavior, public exports, and an output-creation race.
+- Replaced 48 mock-only tests with 170 production-path tests covering plans, presets, bounds, adapters,
+  failure sanitation, editable/custom workflows, evidence-backed evaluation, CLI behavior, public
+  exports, and output-creation races.
 - Consolidated packaging and tooling in `pyproject.toml`, added a reproducible `uv.lock`, and configured
   least-privilege CI plus weekly dependency and Actions updates.
 - Built and inspected the universal wheel and source distribution, including clean wheel-only and
@@ -223,18 +232,18 @@ Recorded on Windows 10 with Python 3.11.9 after the final implementation changes
 
 | Command/check | Actual result |
 | --- | --- |
-| `python -m ruff format --check .` | Exit 0; 28 files already formatted. |
+| `python -m ruff format --check .` | Exit 0; 38 files already formatted. |
 | `python -m ruff check .` | Exit 0; all checks passed. |
-| `python -m mypy samsarix_narrative_engine` | Exit 0; no issues in 8 source files. |
+| `python -m mypy samsarix_narrative_engine` | Exit 0; no issues in 11 source files. |
 | `python -m compileall -q samsarix_narrative_engine tests examples` | Exit 0. |
-| `python -m pytest` | Exit 0; 66 passed; 97.40% branch coverage (90% required). |
-| `python -m pip check` | Exit 0; no broken requirements. |
+| `python -m pytest` | Exit 0; 170 passed; 92.97% branch coverage (90% required). |
+| clean isolated `python -m pip check` | Exit 0; no broken requirements. |
 | `uv lock --check` | Exit 0; 83 packages resolved. |
-| `python -m pip_audit --progress-spinner off` | Exit 0; no known vulnerabilities; the unpublished local package itself was skipped because it is not on PyPI. |
+| clean installed and exact-lock `python -m pip_audit` checks | Exit 0; no known vulnerabilities; the unpublished local package itself was skipped because it is not on PyPI. |
 | credential-pattern scan | Exit 1 from `rg` because no candidate key patterns were found. |
 | `python -m build` | Exit 0; built the 0.1.0 sdist and universal wheel from an isolated environment. |
 | `python -m twine check` | Exit 0; both artifacts passed. |
-| clean base wheel smoke | Exit 0; dependency check, package import, console version, and credential-free `quick` plan passed outside the source path. |
+| clean base wheel smoke | Exit 0; package import, console version, and credential-free evaluation CLI help passed outside the source path. |
 | independent provider extras | Exit 0; OpenAI 2.50.0 and Anthropic 0.120.2 installed/imported independently and each environment passed `uv pip check`. |
 | standard-license comparison | Exit 0; `LICENSE` is byte-for-byte identical to Mozilla's unmodified MPL-2.0 text. |
 | `git diff --check` | Exit 0. |
@@ -244,8 +253,8 @@ OpenAI SDK and MIT for the direct optional Anthropic SDK. The exact resolved dep
 MPL-2.0 is a standard OSI-approved license; counsel should still confirm Samsarix LLC's ownership chain
 for code created before the company rebrand.
 
-Remote CI was configured but cannot be represented as executed until the branch is pushed and GitHub
-Actions runs it. Samsarix-funded live-provider calls were intentionally not made.
+The final exact-head remote CI status is recorded in the pull request before merge. Samsarix-funded
+live-provider calls were intentionally not made.
 
 ## Deferred and blocked work
 
@@ -266,6 +275,8 @@ required for local completion and none will be fabricated.
   transparency, not factual verification, copyright clearance, or safety certification.
 - Full artifact JSON contains generated content. Users must choose an appropriate storage location and
   retention policy.
+- Blinded evaluation reduces identity bias but does not remove sampling variance, evaluator bias, or
+  content-based clues; its fingerprints are integrity checks rather than signatures.
 - Provider SDK/API/model behavior and pricing change independently of this package. Contract tests use
   deterministic clients; Samsarix-funded live smoke tests remain an external release gate for each
   advertised adapter.
