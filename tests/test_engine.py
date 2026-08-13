@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Sequence
 from typing import cast
 
@@ -17,12 +18,16 @@ from samsarix_narrative_engine import (
     InputValidationError,
     Message,
     NarrativeEngine,
+    NarrativeResult,
     Provider,
     ProviderError,
     ProviderResponse,
     TokenUsage,
+    dumps_run_bundle,
     generate_narrative,
     generateNarrative,
+    loads_run_bundle,
+    workflow_fingerprint,
 )
 
 from .conftest import ScriptedProvider
@@ -44,6 +49,8 @@ async def test_quick_journey_returns_story_artifacts_and_real_usage(
     ]
     assert result.usage == TokenUsage(input_tokens=40, output_tokens=20, total_tokens=60)
     assert result.generation_id.startswith("nar_")
+    assert result.creative_brief == "A lighthouse hears a signal."
+    assert result.workflow_fingerprint == workflow_fingerprint("balanced")
     assert result.to_dict()["stages"][0]["content"] == "Blueprint"
     assert len(scripted_provider.calls) == 4
 
@@ -248,3 +255,104 @@ def test_cost_estimate_uses_caller_prices(scripted_provider: ScriptedProvider) -
 def test_cost_estimate_is_none_without_usage() -> None:
     response = ProviderResponse(content="x", provider="p", model="m")
     assert response.usage.total_tokens == 0
+
+
+@pytest.mark.integration
+async def test_resume_reuses_edited_artifacts_and_only_spends_on_the_suffix() -> None:
+    original_provider = ScriptedProvider(
+        ("Blueprint", "Character notes", "World notes", "# Original\nDraft")
+    )
+    previous = await NarrativeEngine(original_provider).generate("A city remembers its visitors.")
+    editable = json.loads(dumps_run_bundle(previous))
+    editable["stages"][2]["content"] = "Edited world rule: memories fade at sunrise."
+    edited = loads_run_bundle(json.dumps(editable))
+
+    resume_provider = ScriptedProvider(("# Branched\nRewritten draft",))
+    result = await NarrativeEngine(resume_provider).resume(
+        edited,
+        "writer",
+        GenerationOptions(preset="balanced", max_calls=1, max_total_output_tokens=2_600),
+    )
+
+    assert len(resume_provider.calls) == 1
+    assert "Edited world rule" in resume_provider.calls[0][0][1].content
+    assert result.content == "# Branched\nRewritten draft"
+    assert result.parent_generation_id == previous.generation_id
+    assert result.resumed_from_stage == "writer"
+    assert [stage.stage_id for stage in result.stages] == [
+        "architect",
+        "character",
+        "world",
+        "writer",
+    ]
+    assert result.stages[2].content.startswith("Edited world rule")
+
+
+async def test_resume_rejects_changed_workflow_without_explicit_review() -> None:
+    previous = await NarrativeEngine(ScriptedProvider(("Blueprint", "# Story\nDraft"))).generate(
+        "Prompt", GenerationOptions(preset="quick")
+    )
+    changed = NarrativeResult(
+        generation_id=previous.generation_id,
+        created_at=previous.created_at,
+        preset=previous.preset,
+        title=previous.title,
+        content=previous.content,
+        stages=previous.stages,
+        creative_brief=previous.creative_brief,
+        workflow_fingerprint="sha256:" + "0" * 64,
+    )
+    provider = ScriptedProvider(("# Changed\nStory",))
+    with pytest.raises(InputValidationError, match="workflow differs"):
+        await NarrativeEngine(provider).resume(changed, "writer")
+    assert provider.calls == []
+
+    result = await NarrativeEngine(provider).resume(
+        changed,
+        "writer",
+        allow_workflow_change=True,
+    )
+    assert result.content.endswith("Story")
+    assert result.workflow_fingerprint == workflow_fingerprint("quick")
+
+
+@pytest.mark.parametrize(
+    ("from_stage", "options", "message"),
+    (
+        ("missing", GenerationOptions(preset="quick"), "not in workflow"),
+        ("writer", GenerationOptions(preset="balanced"), "must match"),
+        ("", GenerationOptions(preset="quick"), "non-empty"),
+    ),
+)
+async def test_resume_validation_prevents_provider_calls(
+    from_stage: str,
+    options: GenerationOptions,
+    message: str,
+) -> None:
+    previous = await NarrativeEngine(ScriptedProvider(("Blueprint", "# Story\nDraft"))).generate(
+        "Prompt", GenerationOptions(preset="quick")
+    )
+    provider = ScriptedProvider(())
+    with pytest.raises(InputValidationError, match=message):
+        await NarrativeEngine(provider).resume(previous, from_stage, options)
+    assert provider.calls == []
+
+
+async def test_resume_requires_the_complete_prior_stage_prefix() -> None:
+    previous = await NarrativeEngine(
+        ScriptedProvider(("Blueprint", "Characters", "World", "# Story\nDraft"))
+    ).generate("Prompt")
+    incomplete = NarrativeResult(
+        generation_id=previous.generation_id,
+        created_at=previous.created_at,
+        preset=previous.preset,
+        title=previous.title,
+        content=previous.content,
+        stages=previous.stages[:1],
+        creative_brief=previous.creative_brief,
+        workflow_fingerprint=previous.workflow_fingerprint,
+    )
+    provider = ScriptedProvider(())
+    with pytest.raises(InputValidationError, match="missing stages"):
+        await NarrativeEngine(provider).resume(incomplete, "writer")
+    assert provider.calls == []

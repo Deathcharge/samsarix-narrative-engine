@@ -1,9 +1,10 @@
 # Samsarix Narrative Engine
 
-Samsarix Narrative Engine is a Python SDK and command-line tool for turning one creative brief into a
-complete short-story draft through a deterministic sequence of editorial stages. It is for developers
-and technically comfortable writers who want inspectable intermediate artifacts and a known ceiling on
-provider calls before spending API credits.
+Samsarix Narrative Engine is a local-first Python SDK and command-line tool for running deterministic,
+reviewable narrative-production workflows. Built-in presets produce short-story drafts; portable custom
+workflows can produce editorial revisions, game-quest implementation packets, or other staged narrative
+artifacts. It is for developers, studios, and technically comfortable writers who need inspectable
+intermediates and a known ceiling on provider calls before spending API credits.
 
 Current maturity: **0.1 release candidate**. The local package, deterministic workflow, and provider
 contracts are tested. Publishing and Samsarix-funded live-provider smoke tests are still external release
@@ -14,11 +15,17 @@ gates; no PyPI release or hosted service is claimed.
 General agent frameworks already solve open-ended delegation. Narrative Engine does something narrower:
 
 - `quick`, `balanced`, and `polished` plans always run known stages in a known order;
+- strict `samsarix.workflow/v1` files let teams define their own bounded stages and explicit context
+  dependencies without writing orchestration code;
 - `samsarix-narrative plan` shows the exact maximum call count and requested output-token total without a
   key;
 - one explicitly selected provider is enough for a run, with no surprise fallback spending;
 - the result contains the blueprint, editorial notes, draft/revision, model IDs, durations, caps, and
   provider-reported token usage;
+- versioned run bundles can be edited between stages and resumed as traceable branches without paying
+  to regenerate accepted work;
+- completed bundles can be compared through deterministic A/B packets, private unblinding keys, strict
+  score sheets, and evidence-backed Markdown/JSON reports;
 - the core package has no runtime dependency and accepts custom async providers.
 
 It is a package and CLI, not a web service. Authentication, databases, subscriptions, cloud deployment,
@@ -83,12 +90,16 @@ does not silently route between them.
 samsarix-narrative --help
 samsarix-narrative --version
 samsarix-narrative plan --preset polished --json
+samsarix-narrative plan --preset polished --from-stage writer --json
 samsarix-narrative generate --prompt-file brief.txt --provider anthropic --preset quick
+samsarix-narrative resume --artifacts-in run.json --from-stage writer --artifacts-out branch.json
+samsarix-narrative evaluate prepare --manifest evaluation/manifest.json --packet packet.md --key key.json --scores scores.json
+samsarix-narrative evaluate report --key key.json --scores scores.json --output report.md --json-output report.json
 ```
 
-`--prompt-file -` reads UTF-8 text from standard input. Without `--output`, the story is written to
-standard output and status/accounting goes to standard error, which makes non-interactive pipelines
-predictable. `--artifacts` writes the full result as UTF-8 JSON.
+`--prompt-file -` reads UTF-8 text from standard input. Without `--output`, the final stage output is
+written to standard output and status/accounting goes to standard error, which makes non-interactive
+pipelines predictable. `--artifacts` writes the full result as UTF-8 JSON.
 
 Meaningful exits are:
 
@@ -103,12 +114,85 @@ Meaningful exits are:
 
 Use `samsarix-narrative generate --help` for all bounds and output options.
 
+## Custom workflow definitions
+
+A workflow is portable JSON with an ID, display name, and 1–20 ordered stages. Every stage declares its
+role, system prompt, output-token cap, and the earlier artifacts it receives through `context_from`.
+Unknown fields, forward/self references, duplicate IDs, unsafe strings, per-stage caps above 32,768, and
+aggregate caps above 100,000 are rejected before provider construction.
+
+Two executable examples are checked in:
+
+- [game-quest-production.json](examples/workflows/game-quest-production.json) produces a quest
+  implementation packet from constraints, beats, branching dialogue, and continuity review;
+- [editorial-scene-revision.json](examples/workflows/editorial-scene-revision.json) turns a scene brief
+  or draft into a complete revision after developmental and character passes.
+
+Plan and run either without changing Python code:
+
+```bash
+samsarix-narrative plan --workflow examples/workflows/game-quest-production.json --json
+samsarix-narrative generate --workflow examples/workflows/game-quest-production.json --prompt-file quest-brief.md --output quest-packet.md --artifacts quest-run.json --max-calls 5 --max-total-output-tokens 7600
+```
+
+The last stage is the run's primary output. Every completed run embeds the exact workflow definition and
+its SHA-256 fingerprint, so the bundle remains executable even when the original workflow file moves.
+The machine-readable contracts are [workflow-v1.schema.json](schemas/workflow-v1.schema.json) and
+[run-v1.schema.json](schemas/run-v1.schema.json); the dependency-order and aggregate-budget invariants
+are additionally enforced by the runtime. See [CUSTOM_WORKFLOWS.md](docs/CUSTOM_WORKFLOWS.md) for the
+contract, evolution rules, and integration examples.
+
+## Editable run bundles and branching
+
+`--artifacts` writes a portable `samsarix.run/v1` JSON bundle containing the creative brief, exact
+embedded workflow definition and fingerprint, stage outputs, provider/model metadata, timing, and
+provider-reported usage. This makes a human editorial checkpoint a normal workflow rather than a
+restart:
+
+```bash
+samsarix-narrative generate --prompt-file brief.md --preset polished --output draft.md --artifacts run.json
+# Review run.json and edit an accepted upstream stage such as character or world content.
+samsarix-narrative plan --preset polished --from-stage writer
+samsarix-narrative resume --artifacts-in run.json --from-stage writer --output revised.md --artifacts-out branch.json --max-calls 3 --max-total-output-tokens 6600
+```
+
+The resumed run reuses only the ordered stages before `--from-stage`, applies call/token limits to the
+new suffix, and records `parent_generation_id` plus `resumed_from_stage`. It refuses a changed workflow
+fingerprint unless `--allow-workflow-change` is explicitly supplied after prompt changes are reviewed.
+The input and output bundles must be different files, preserving the parent as a rollback point.
+
+## Blinded evaluation
+
+Compare two workflow, model, provider, or prompt treatments without exposing their identities to the
+reviewer. A strict `samsarix.evaluation/v1` manifest references completed run bundles for the same
+creative brief, declares a fixed seed and 1-8 criteria, and uses the same two treatment IDs across every
+case.
+
+```bash
+samsarix-narrative evaluate prepare --manifest evaluation/manifest.json --packet evaluation/packet.md --key evaluation/private-key.json --scores evaluation/scores.json
+# Give only packet.md and scores.json to the reviewer. Keep the key, manifest, and source bundles private.
+samsarix-narrative evaluate report --key evaluation/private-key.json --scores evaluation/scores.json --output evaluation/report.md --json-output evaluation/report.json
+```
+
+Preparation and reporting are local, deterministic, and credential-free. The report recomputes an
+evidence fingerprint before unblinding, then summarizes rubric means, preferences/ties, calls, requested
+output caps, provider-reported tokens, and durations. These are descriptive results, not statistical
+proof of general quality. See [EVALUATION.md](docs/EVALUATION.md) for the complete method, privacy
+boundary, checked-in template, and interpretation limits.
+
 ## Python API
 
 ```python
 import asyncio
 
-from samsarix_narrative_engine import GenerationOptions, NarrativeEngine, OpenAIProvider
+from samsarix_narrative_engine import (
+    GenerationOptions,
+    NarrativeEngine,
+    OpenAIProvider,
+    WorkflowRunOptions,
+    load_run_bundle,
+    load_workflow,
+)
 
 
 async def main() -> None:
@@ -122,6 +206,23 @@ async def main() -> None:
     print(result.usage.to_dict())  # zero values mean the provider did not report usage
     for stage in result.stages:
         print(stage.stage_id, stage.model, stage.duration_ms)
+
+    custom = load_workflow("examples/workflows/editorial-scene-revision.json")
+    custom_result = await engine.run(
+        "Revise a tense reunion scene while preserving a restrained voice.",
+        custom,
+        WorkflowRunOptions(max_calls=4, max_total_output_tokens=5_500),
+    )
+    print(custom_result.workflow_fingerprint, custom_result.content)
+
+    # After a human edits an upstream stage in the saved JSON bundle:
+    previous = load_run_bundle("run.json")
+    branch = await engine.resume(
+        previous,
+        "writer",
+        GenerationOptions(preset=previous.preset, max_calls=3, max_total_output_tokens=6_600),
+    )
+    print(branch.parent_generation_id, branch.content)
 
 
 asyncio.run(main())
@@ -195,10 +296,14 @@ plus Python 3.12 on Linux. See [CONTRIBUTING.md](CONTRIBUTING.md) for the workfl
 ## Architecture
 
 - `agents.py` contains immutable stage definitions and presets.
+- `artifacts.py` validates portable, size-bounded run bundles.
+- `evaluation.py` prepares deterministic blind packets and validates/unblinds completed score sheets.
+- `workflows.py` strictly loads portable definitions and builds full or suffix plans.
 - `engine.py` validates the entire plan before running code-orchestrated stages.
 - `providers.py` defines the provider protocol and optional bounded adapters.
 - `models.py` contains immutable, serializable plans, usage, stages, and results.
 - `cli.py` handles non-interactive input, status separation, exit codes, and atomic persistence.
+- `schemas/` contains JSON Schema 2020-12 workflow, run, evaluation, and score-sheet contracts.
 
 There is no hidden persistence, cache, telemetry, background worker, or Samsarix service dependency.
 
@@ -207,10 +312,16 @@ There is no hidden persistence, cache, telemetry, background worker, or Samsarix
 - Keys are read from environment variables, are not accepted as CLI arguments, and are never logged.
 - Prompts and generated content are sent to the explicitly selected provider and are subject to that
   provider's terms, retention controls, and the user's account configuration.
-- The package writes generated content only when an output/artifact path is explicitly supplied. Full
-  artifact JSON can contain private generated content.
+- The package writes generated content only when an output/artifact path is explicitly supplied. A full
+  run bundle contains the original creative brief, generated content, and lineage; store or share it as
+  private story material.
+- Blinded packets still contain creative briefs and generated content. Keep evaluation keys, manifests,
+  and source run bundles private during review; evidence fingerprints detect inconsistent edits but are
+  not signatures.
 - User story material is serialized as text context. The engine exposes no tools, shell execution,
   retrieval, or filesystem access to models.
+- Custom workflow system prompts are executable configuration. Review workflow files like code and do
+  not run untrusted definitions merely because they pass structural validation.
 - Provider errors are sanitized at the package boundary; inspect chained exceptions only in trusted
   developer environments because SDK exceptions may contain request metadata.
 - Generated text can be wrong, biased, derivative, or unsuitable. The editorial review is not factual
@@ -218,6 +329,8 @@ There is no hidden persistence, cache, telemetry, background worker, or Samsarix
 
 Report security issues using [SECURITY.md](SECURITY.md). The threat boundaries and remaining release gates
 are tracked in [PRODUCTIZATION.md](docs/PRODUCTIZATION.md).
+The evidence-backed product direction and validation plan are in
+[COMPETITIVE_RESEARCH.md](docs/COMPETITIVE_RESEARCH.md).
 
 ## Project status, license, and trademarks
 

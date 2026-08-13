@@ -1,0 +1,35 @@
+{
+  "schema": "samsarix.workflow/v1",
+  "id": "editorial.scene-revision",
+  "name": "Editorial scene revision",
+  "stages": [
+    {
+      "id": "diagnosis",
+      "role": "Developmental scene editor",
+      "system_prompt": "Diagnose the supplied scene or scene brief for viewpoint, objective, conflict, causality, turn, stakes, pacing, and alignment with the author's constraints. Cite only details present in the supplied material.",
+      "max_output_tokens": 900,
+      "context_from": []
+    },
+    {
+      "id": "character",
+      "role": "Character continuity editor",
+      "system_prompt": "Identify each character's knowledge, motivation, emotional state, choices, and continuity risks. Recommend specific changes that preserve agency and the author's intended arc.",
+      "max_output_tokens": 800,
+      "context_from": ["diagnosis"]
+    },
+    {
+      "id": "revision_plan",
+      "role": "Revision planner",
+      "system_prompt": "Turn the diagnosis and character notes into a prioritized, bounded revision plan. Preserve intentional ambiguity, list any assumptions, and resolve conflicts between recommendations.",
+      "max_output_tokens": 800,
+      "context_from": ["diagnosis", "character"]
+    },
+    {
+      "id": "revision",
+      "role": "Scene reviser",
+      "system_prompt": "Return the complete revised scene beginning with one Markdown H1 title. Apply the revision plan while preserving the author's voice and explicit constraints. Do not include analysis, scores, citations, or workflow commentary.",
+      "max_output_tokens": 3000,
+      "context_from": ["diagnosis", "character", "revision_plan"]
+    }
+  ]
+}

@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 from pathlib import Path
@@ -12,6 +13,11 @@ from typing import Any
 
 import pytest
 
+from samsarix_narrative_engine import (
+    NarrativeEngine,
+    dumps_run_bundle,
+    load_run_bundle,
+)
 from samsarix_narrative_engine.cli import main
 from samsarix_narrative_engine.exceptions import ProviderError
 
@@ -49,6 +55,15 @@ def test_cli_plan_needs_no_provider(capsys: pytest.CaptureFixture[str]) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert payload["max_calls"] == 4
     assert payload["stages"][-1]["stage_id"] == "writer"
+
+    assert main(("plan", "--preset", "balanced", "--from-stage", "writer", "--json")) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["from_stage"] == "writer"
+    assert payload["max_calls"] == 1
+    assert payload["max_output_tokens"] == 2_600
+
+    assert main(("plan", "--preset", "quick", "--from-stage", "critic")) == 2
+    assert "not in workflow" in capsys.readouterr().err
 
 
 def test_cli_generate_writes_story_and_artifacts_atomically(
@@ -152,6 +167,48 @@ def test_force_replaces_only_explicit_output(tmp_path: Path) -> None:
     )
     assert story.read_text(encoding="utf-8").endswith("New\n")
     assert sibling.read_text(encoding="utf-8") == "untouched"
+
+
+@pytest.mark.parametrize("target_exists", (False, True))
+def test_cli_rejects_final_output_symlinks(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    target_exists: bool,
+) -> None:
+    target = tmp_path / "outside.md"
+    if target_exists:
+        target.write_text("keep", encoding="utf-8")
+    output = tmp_path / "story.md"
+    try:
+        output.symlink_to(target)
+    except OSError as error:
+        pytest.skip(f"file symlinks are unavailable: {error}")
+    provider_calls = 0
+
+    def factory(*_args: Any, **_kwargs: Any) -> ScriptedProvider:
+        nonlocal provider_calls
+        provider_calls += 1
+        return ScriptedProvider(("Blueprint", "# Story\nBody"))
+
+    arguments = [
+        "generate",
+        "--prompt",
+        "Prompt",
+        "--preset",
+        "quick",
+        "--output",
+        str(output),
+    ]
+    if target_exists:
+        arguments.append("--force")
+
+    assert main(arguments, provider_factory=factory) == 4
+    assert provider_calls == 0
+    assert output.is_symlink()
+    assert target.exists() is target_exists
+    if target_exists:
+        assert target.read_text(encoding="utf-8") == "keep"
+    assert "symbolic link or reparse point" in capsys.readouterr().err
 
 
 def test_output_created_during_generation_is_not_overwritten(
@@ -264,3 +321,103 @@ def test_cli_budget_errors_return_usage_exit(capsys: pytest.CaptureFixture[str])
 
 def test_cli_provider_error_type_is_public() -> None:
     assert issubclass(ProviderError, Exception)
+
+
+def test_cli_resume_branches_an_edited_bundle_atomically(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    previous = asyncio.run(
+        NarrativeEngine(
+            ScriptedProvider(("Blueprint", "Characters", "World", "# Original\nDraft"))
+        ).generate("A city whose laws change at midnight.")
+    )
+    source = tmp_path / "original.json"
+    source.write_text(dumps_run_bundle(previous), encoding="utf-8")
+    data = json.loads(source.read_text(encoding="utf-8"))
+    data["stages"][2]["content"] = "Edited canon: laws change only at dawn."
+    source.write_text(json.dumps(data), encoding="utf-8")
+
+    provider = ScriptedProvider(("# Branched\nNew story",))
+    story = tmp_path / "branched.md"
+    bundle = tmp_path / "branched.json"
+    assert (
+        main(
+            (
+                "resume",
+                "--artifacts-in",
+                str(source),
+                "--from-stage",
+                "writer",
+                "--output",
+                str(story),
+                "--artifacts-out",
+                str(bundle),
+                "--max-calls",
+                "1",
+                "--max-total-output-tokens",
+                "2600",
+            ),
+            provider_factory=_factory(provider),
+        )
+        == 0
+    )
+
+    branched = load_run_bundle(bundle)
+    assert story.read_text(encoding="utf-8") == "# Branched\nNew story\n"
+    assert branched.parent_generation_id == previous.generation_id
+    assert branched.resumed_from_stage == "writer"
+    assert branched.stages[2].content.startswith("Edited canon")
+    assert len(provider.calls) == 1
+    status = capsys.readouterr().err
+    assert "1 new calls" in status
+    assert "15 new total tokens" in status
+
+
+def test_cli_resume_refuses_unsafe_paths_and_invalid_input_before_provider_creation(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    source = tmp_path / "source.json"
+    source.write_text("{}", encoding="utf-8")
+    factory_calls = 0
+
+    def factory(*_args: Any, **_kwargs: Any) -> ScriptedProvider:
+        nonlocal factory_calls
+        factory_calls += 1
+        return ScriptedProvider(())
+
+    assert (
+        main(
+            (
+                "resume",
+                "--artifacts-in",
+                str(source),
+                "--from-stage",
+                "writer",
+                "--artifacts-out",
+                str(source),
+                "--force",
+            ),
+            provider_factory=factory,
+        )
+        == 4
+    )
+    assert factory_calls == 0
+    assert "different files" in capsys.readouterr().err
+
+    assert (
+        main(
+            (
+                "resume",
+                "--artifacts-in",
+                str(source),
+                "--from-stage",
+                "writer",
+            ),
+            provider_factory=factory,
+        )
+        == 2
+    )
+    assert factory_calls == 0
+    assert "invalid run bundle" in capsys.readouterr().err

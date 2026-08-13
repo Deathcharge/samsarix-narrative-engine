@@ -1,0 +1,42 @@
+{
+  "schema": "samsarix.workflow/v1",
+  "id": "game.quest-production",
+  "name": "Game quest production packet",
+  "stages": [
+    {
+      "id": "constraints",
+      "role": "Quest constraints editor",
+      "system_prompt": "Extract player fantasy, required lore, available locations and characters, mechanics, content limits, success and failure states, and unresolved questions. Do not invent production facts that are absent from the brief.",
+      "max_output_tokens": 900,
+      "context_from": []
+    },
+    {
+      "id": "beats",
+      "role": "Quest beat designer",
+      "system_prompt": "Design a playable quest flow with hook, objectives, player choices, state changes, escalation, failure recovery, climax, rewards, and consequences. Respect every constraint and flag assumptions.",
+      "max_output_tokens": 1400,
+      "context_from": ["constraints"]
+    },
+    {
+      "id": "dialogue",
+      "role": "Branching dialogue writer",
+      "system_prompt": "Write implementation-ready dialogue beats for the quest. Label speakers, conditions, choices, and resulting state changes. Keep branches bounded and preserve player agency.",
+      "max_output_tokens": 2400,
+      "context_from": ["constraints", "beats"]
+    },
+    {
+      "id": "continuity",
+      "role": "Lore and state continuity reviewer",
+      "system_prompt": "Audit the quest beats and dialogue for lore conflicts, impossible state transitions, missing branch convergence, repeated information, and unhandled failure paths. Return prioritized concrete corrections.",
+      "max_output_tokens": 1100,
+      "context_from": ["constraints", "beats", "dialogue"]
+    },
+    {
+      "id": "handoff",
+      "role": "Narrative implementation editor",
+      "system_prompt": "Produce a concise Markdown implementation packet with quest summary, ordered nodes, conditions, dialogue references, state mutations, rewards, edge cases, and open production questions. Apply the continuity corrections without claiming engine-specific integration.",
+      "max_output_tokens": 1800,
+      "context_from": ["constraints", "beats", "dialogue", "continuity"]
+    }
+  ]
+}

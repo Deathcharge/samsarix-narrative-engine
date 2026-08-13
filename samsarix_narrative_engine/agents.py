@@ -10,7 +10,12 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Optional
 
-from .models import GenerationPlan, PlannedStage
+from .models import (
+    GenerationPlan,
+    WorkflowDefinition,
+    WorkflowStage,
+)
+from .workflows import build_workflow_plan
 
 
 @dataclass(frozen=True)
@@ -22,6 +27,7 @@ class AgentDefinition:
     role: str
     system_prompt: str
     max_output_tokens: int
+    context_from: tuple[str, ...] = ()
 
 
 _AGENTS = {
@@ -47,6 +53,7 @@ _AGENTS = {
             "emotional change. Flag continuity risks instead of inventing external facts."
         ),
         max_output_tokens=800,
+        context_from=("architect",),
     ),
     "world": AgentDefinition(
         agent_id="world",
@@ -58,6 +65,7 @@ _AGENTS = {
             "world internally consistent. Do not fabricate citations or imply factual research."
         ),
         max_output_tokens=800,
+        context_from=("architect",),
     ),
     "provocateur": AgentDefinition(
         agent_id="provocateur",
@@ -69,6 +77,7 @@ _AGENTS = {
             "world rules. Prefer one strong choice over a pile of random twists."
         ),
         max_output_tokens=600,
+        context_from=("architect", "character", "world"),
     ),
     "writer": AgentDefinition(
         agent_id="writer",
@@ -81,6 +90,7 @@ _AGENTS = {
             "central conflict and respect every explicit content constraint in the brief."
         ),
         max_output_tokens=2_600,
+        context_from=("architect", "character", "world", "provocateur"),
     ),
     "critic": AgentDefinition(
         agent_id="critic",
@@ -93,6 +103,7 @@ _AGENTS = {
             "not output a numeric quality score or claim ethical approval."
         ),
         max_output_tokens=900,
+        context_from=("writer",),
     ),
     "reviser": AgentDefinition(
         agent_id="reviser",
@@ -104,6 +115,7 @@ _AGENTS = {
             "title. Do not mention the workflow, the memo, or any quality or safety judgment."
         ),
         max_output_tokens=2_800,
+        context_from=("architect", "writer", "critic"),
     ),
 }
 
@@ -150,6 +162,33 @@ def get_all_presets() -> Mapping[str, tuple[str, ...]]:
     return PRESETS
 
 
+def workflow_for_preset(preset: str) -> WorkflowDefinition:
+    """Return a portable workflow definition for one built-in preset."""
+
+    stage_ids = get_preset(preset)
+    if stage_ids is None:
+        choices = ", ".join(PRESETS)
+        raise ValueError(f"unknown preset '{preset}'; choose one of: {choices}")
+    return WorkflowDefinition(
+        workflow_id=preset,
+        name=f"Samsarix {preset.title()}",
+        stages=tuple(
+            WorkflowStage(
+                stage_id=agent_id,
+                role=AGENTS[agent_id].role,
+                system_prompt=AGENTS[agent_id].system_prompt,
+                max_output_tokens=AGENTS[agent_id].max_output_tokens,
+                context_from=tuple(
+                    dependency
+                    for dependency in AGENTS[agent_id].context_from
+                    if dependency in stage_ids
+                ),
+            )
+            for agent_id in stage_ids
+        ),
+    )
+
+
 def build_plan(preset: str) -> GenerationPlan:
     """Build the exact provider-call plan for a preset.
 
@@ -157,20 +196,20 @@ def build_plan(preset: str) -> GenerationPlan:
         ValueError: If ``preset`` is unknown.
     """
 
-    stage_ids = get_preset(preset)
-    if stage_ids is None:
-        choices = ", ".join(PRESETS)
-        raise ValueError(f"unknown preset '{preset}'; choose one of: {choices}")
+    return build_workflow_plan(workflow_for_preset(preset))
 
-    stages = tuple(
-        PlannedStage(
-            stage_id=agent_id,
-            role=AGENTS[agent_id].role,
-            max_output_tokens=AGENTS[agent_id].max_output_tokens,
-        )
-        for agent_id in stage_ids
-    )
-    return GenerationPlan(preset=preset, stages=stages)
+
+def build_resume_plan(preset: str, from_stage: str) -> GenerationPlan:
+    """Build the suffix of a preset that will be rerun from ``from_stage``."""
+
+    return build_workflow_plan(workflow_for_preset(preset), from_stage)
+
+
+def workflow_fingerprint(selection: str | WorkflowDefinition) -> str:
+    """Return the stable digest of a built-in or explicit workflow."""
+
+    workflow = workflow_for_preset(selection) if isinstance(selection, str) else selection
+    return workflow.fingerprint
 
 
 # Compatibility helpers for the original 1.0 surface. New code should use the
@@ -187,6 +226,7 @@ def getAgentConfig(agent_id: str) -> Optional[dict[str, Any]]:
         "role": agent.role,
         "systemPrompt": agent.system_prompt,
         "maxOutputTokens": agent.max_output_tokens,
+        "contextFrom": list(agent.context_from),
     }
 
 
