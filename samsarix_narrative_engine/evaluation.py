@@ -432,10 +432,7 @@ def prepare_evaluation(
         evidence_cases.append(
             {
                 "id": case.case_id,
-                "treatments": sorted(
-                    assignments.values(),
-                    key=lambda item: str(item["treatment_id"]),
-                ),
+                "assignments": {label: assignments[label] for label in ("A", "B")},
             }
         )
 
@@ -683,10 +680,7 @@ def _verify_evidence_fingerprint(
         evidence_cases.append(
             {
                 "id": case_id,
-                "treatments": sorted(
-                    (assignments["A"], assignments["B"]),
-                    key=lambda item: str(item["treatment_id"]),
-                ),
+                "assignments": {label: assignments[label] for label in ("A", "B")},
             }
         )
     expected = _canonical_digest(

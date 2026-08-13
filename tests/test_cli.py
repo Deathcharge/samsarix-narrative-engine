@@ -169,6 +169,48 @@ def test_force_replaces_only_explicit_output(tmp_path: Path) -> None:
     assert sibling.read_text(encoding="utf-8") == "untouched"
 
 
+@pytest.mark.parametrize("target_exists", (False, True))
+def test_cli_rejects_final_output_symlinks(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    target_exists: bool,
+) -> None:
+    target = tmp_path / "outside.md"
+    if target_exists:
+        target.write_text("keep", encoding="utf-8")
+    output = tmp_path / "story.md"
+    try:
+        output.symlink_to(target)
+    except OSError as error:
+        pytest.skip(f"file symlinks are unavailable: {error}")
+    provider_calls = 0
+
+    def factory(*_args: Any, **_kwargs: Any) -> ScriptedProvider:
+        nonlocal provider_calls
+        provider_calls += 1
+        return ScriptedProvider(("Blueprint", "# Story\nBody"))
+
+    arguments = [
+        "generate",
+        "--prompt",
+        "Prompt",
+        "--preset",
+        "quick",
+        "--output",
+        str(output),
+    ]
+    if target_exists:
+        arguments.append("--force")
+
+    assert main(arguments, provider_factory=factory) == 4
+    assert provider_calls == 0
+    assert output.is_symlink()
+    assert target.exists() is target_exists
+    if target_exists:
+        assert target.read_text(encoding="utf-8") == "keep"
+    assert "symbolic link or reparse point" in capsys.readouterr().err
+
+
 def test_output_created_during_generation_is_not_overwritten(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],

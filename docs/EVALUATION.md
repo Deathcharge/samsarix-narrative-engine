@@ -62,9 +62,11 @@ The command writes:
 - `private-key.json`: treatment assignments plus run, content, workflow, usage, and timing evidence;
 - `scores.json`: an editable blinded score sheet.
 
-Keep the key away from the reviewer until scoring is complete. The packet deliberately omits treatment,
-provider, model, workflow, and generation identifiers. It still contains private creative material and
-generated output, so it is not a public-safe redaction.
+Give only the packet and score sheet to the reviewer. Keep the key, manifest, and referenced source run
+bundles away from the reviewer until scoring is complete: the deterministic seed and source metadata can
+reconstruct the A/B assignment even without the key. The packet deliberately omits treatment, provider,
+model, workflow, and generation identifiers. It still contains private creative material and generated
+output, so it is not a public-safe redaction.
 
 Preparation is reproducible for identical manifest and run-bundle evidence. A recorded SHA-256 evidence
 fingerprint covers the manifest fingerprint and canonical evidence for every compared run. Formatting

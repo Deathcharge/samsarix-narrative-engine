@@ -170,7 +170,7 @@ case.
 
 ```bash
 samsarix-narrative evaluate prepare --manifest evaluation/manifest.json --packet evaluation/packet.md --key evaluation/private-key.json --scores evaluation/scores.json
-# Give packet.md and scores.json to the reviewer, but keep private-key.json private.
+# Give only packet.md and scores.json to the reviewer. Keep the key, manifest, and source bundles private.
 samsarix-narrative evaluate report --key evaluation/private-key.json --scores evaluation/scores.json --output evaluation/report.md --json-output evaluation/report.json
 ```
 

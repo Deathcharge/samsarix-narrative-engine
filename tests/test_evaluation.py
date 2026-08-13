@@ -421,6 +421,22 @@ def test_report_counts_ties_without_awarding_a_preference(tmp_path: Path) -> Non
     assert "Both were usable." in report.markdown
 
 
+def test_report_fingerprint_binds_blind_assignment_labels(tmp_path: Path) -> None:
+    _write_fixture_runs(tmp_path)
+    prepared = prepare_evaluation(_manifest(), tmp_path)
+    key = json.loads(prepared.key_json)
+    scores = _completed_scores(prepared.key_json, prepared.scores_json)
+    assignments = key["cases"][0]["assignments"]
+    assignments["A"], assignments["B"] = assignments["B"], assignments["A"]
+    key_path = tmp_path / "key.json"
+    scores_path = tmp_path / "scores.json"
+    key_path.write_text(json.dumps(key), encoding="utf-8")
+    scores_path.write_text(json.dumps(scores), encoding="utf-8")
+
+    with pytest.raises(InputValidationError, match="evidence_fingerprint"):
+        build_evaluation_report(key_path, scores_path)
+
+
 @pytest.mark.parametrize(
     ("target", "mutate", "message"),
     (
@@ -591,7 +607,7 @@ def test_cli_prepares_and_reports_without_constructing_a_provider(
     )
     assert provider_calls == 0
     assert packet.exists() and key.exists() and scores.exists()
-    assert "keep the unblinding key private" in capsys.readouterr().err
+    assert "keep the key, manifest, and source bundles" in capsys.readouterr().err
 
     completed = _completed_scores(
         key.read_text("utf-8"),

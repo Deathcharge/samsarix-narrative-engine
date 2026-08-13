@@ -9,6 +9,7 @@ import argparse
 import asyncio
 import json
 import os
+import stat
 import sys
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
@@ -233,20 +234,45 @@ def _read_prompt(args: argparse.Namespace) -> str:
         ) from error
 
 
+def _resolved_output_path(path: Path) -> Path:
+    try:
+        return path.parent.resolve() / path.name
+    except OSError as error:
+        raise OutputError(
+            f"cannot resolve output parent ({type(error).__name__}): {path.parent}"
+        ) from error
+
+
+def _reject_link_output(path: Path) -> None:
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        return
+    except OSError as error:
+        raise OutputError(f"cannot inspect output path ({type(error).__name__}): {path}") from error
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    if stat.S_ISLNK(metadata.st_mode) or bool(attributes & reparse_flag):
+        raise OutputError(f"output path must not be a symbolic link or reparse point: {path}")
+
+
 def _preflight_output(path: Optional[Path], *, force: bool) -> None:
     if path is None:
         return
-    if path.exists() and path.is_dir():
+    resolved_path = _resolved_output_path(path)
+    _reject_link_output(resolved_path)
+    if resolved_path.exists() and resolved_path.is_dir():
         raise OutputError(f"output path is a directory: {path}")
-    if path.exists() and not force:
+    if resolved_path.exists() and not force:
         raise OutputError(f"output already exists; pass --force to replace it: {path}")
-    parent = path.resolve().parent
+    parent = resolved_path.parent
     if parent.exists() and not parent.is_dir():
         raise OutputError(f"output parent is not a directory: {parent}")
 
 
 def _atomic_write(path: Path, content: str, *, force: bool) -> None:
-    resolved_path = path.resolve()
+    resolved_path = _resolved_output_path(path)
+    _reject_link_output(resolved_path)
     parent = resolved_path.parent
     temporary_name: Optional[str] = None
     try:
@@ -309,7 +335,8 @@ def _evaluate(args: argparse.Namespace) -> int:
         _atomic_write(args.scores, prepared.scores_json, force=args.force)
         print(
             f"Prepared {manifest.evaluation_id}: {len(manifest.cases)} blinded cases; "
-            f"keep the unblinding key private ({prepared.evidence_fingerprint}).",
+            "keep the key, manifest, and source bundles away from the reviewer "
+            f"({prepared.evidence_fingerprint}).",
             file=sys.stderr,
         )
         return 0
