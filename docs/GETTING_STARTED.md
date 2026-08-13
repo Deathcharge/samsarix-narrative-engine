@@ -151,8 +151,9 @@ Prepare a deterministic packet without credentials or provider calls:
 samsarix-narrative evaluate prepare --manifest evaluation/manifest.json --packet evaluation/packet.md --key evaluation/private-key.json --scores evaluation/scores.json
 ```
 
-Give the reviewer `packet.md` and `scores.json`, retain `private-key.json` privately, and replace every
-null score with 1-5 plus every null preference with A, B, or tie. Then unblind:
+Give the reviewer only `packet.md` and `scores.json`; retain the private key, manifest, and referenced
+source run bundles privately. Replace every null score with 1-5 plus every null preference with A, B,
+or tie. Then unblind:
 
 ```bash
 samsarix-narrative evaluate report --key evaluation/private-key.json --scores evaluation/scores.json --output evaluation/report.md --json-output evaluation/report.json

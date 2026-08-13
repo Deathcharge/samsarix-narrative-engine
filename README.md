@@ -315,8 +315,9 @@ There is no hidden persistence, cache, telemetry, background worker, or Samsarix
 - The package writes generated content only when an output/artifact path is explicitly supplied. A full
   run bundle contains the original creative brief, generated content, and lineage; store or share it as
   private story material.
-- Blinded packets still contain creative briefs and generated content. Keep evaluation keys private
-  during review; evidence fingerprints detect inconsistent edits but are not signatures.
+- Blinded packets still contain creative briefs and generated content. Keep evaluation keys, manifests,
+  and source run bundles private during review; evidence fingerprints detect inconsistent edits but are
+  not signatures.
 - User story material is serialized as text context. The engine exposes no tools, shell execution,
   retrieval, or filesystem access to models.
 - Custom workflow system prompts are executable configuration. Review workflow files like code and do
