@@ -35,6 +35,8 @@ published.
 - Bound file reads on the opened regular-file descriptor and CLI stdin before buffering full input;
   reject ambiguous JSON, invalid Unicode, excessive nesting, and malformed score preferences safely.
 - Require pip 26.2 or newer in development tooling for PYSEC-2026-3721; lock pip 26.2.1.
+- Permit OpenAI SDK 3 and setuptools 84 with a refreshed dependency lock and offline real-SDK
+  transport tests for Responses/Chat Completions, request caps, disabled retries, and sanitized errors.
 - Adopted the Samsarix LLC identity across the distribution, Python namespace, CLI, configuration, and
   support contacts.
 - Replaced the customized BSL text with the standard MPL-2.0 license, copyright notice, and trademark

@@ -96,6 +96,11 @@ OpenAI requests use the Responses API with response storage disabled. Anthropic 
 xAI and Perplexity use their explicitly named OpenAI-compatible Chat Completions endpoints. The engine
 does not silently route between them.
 
+OpenAI SDK 3 uses HTTPX2 and the operating-system certificate trust store. Default Samsarix adapters
+need no configuration change. If you inject a custom SDK client, migrate its HTTP transports to HTTPX2;
+minimal images and corporate proxies may need system CA certificates or an explicit `SSL_CERT_FILE`.
+Do not disable TLS verification. See the [upstream migration guide](https://github.com/openai/openai-python/blob/main/httpx2.md).
+
 ## CLI workflow
 
 ```text

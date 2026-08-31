@@ -334,6 +334,25 @@ streaming or another provider adapter. The offline fixture cannot substitute for
 
 ## Deferred and blocked work
 
+### Dependency PR follow-up (2026-08-31)
+
+The owner authorized review/merge of remaining PRs after the closure milestone. Dependabot PR #7's
+failure was a stale lockfile after widening OpenAI/setuptools ranges. Latest main was merged into that
+branch without rewriting history; targeted lock updates selected OpenAI 3.6.0 and setuptools 84.0.0
+(87 total lock entries). No provider implementation change was needed.
+
+Eight additional offline tests use the installed SDK and its native HTTP mock transport to exercise
+Responses and Chat Completions serialization/parsing, call caps, disabled retries, and sanitized
+rate-limit/server/timeout errors. All eight passed with OpenAI 2.49.0 and 3.6.0. The refreshed isolated
+Python 3.11.9 environment passed 237 tests with one POSIX-only skip and 93.53% coverage, Ruff format/lint,
+strict mypy, installed/locked dependency audits, build, and Twine checks. Exact-head CI evidence is
+recorded in PR #7 before merge.
+
+The [upstream HTTPX2 guide](https://github.com/openai/openai-python/blob/main/httpx2.md) confirms the
+default SDK call interface remains compatible. SDK 3 uses OS certificate trust; the README now calls
+out custom-transport migration and system CA/explicit bundle configuration without disabling TLS.
+These transport tests do not replace funded live-adapter or production TLS validation.
+
 Owner/legal decisions:
 
 - Confirm that Samsarix LLC owns or has a written right to license all pre-company contributions under
