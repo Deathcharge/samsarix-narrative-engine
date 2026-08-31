@@ -21,6 +21,8 @@ published.
   workflows.
 - Deterministic `samsarix.evaluation/v1` pairwise manifests, blinded Markdown review packets, private
   unblinding evidence, strict `samsarix.scores/v1` score sheets, and Markdown/JSON comparison reports.
+- Credential-free game-quest walkthrough covering generation, human edit, suffix resume, blinded
+  packets, and explicitly synthetic sample reports; also exercised against the installed wheel in CI.
 
 ### Changed
 
@@ -30,6 +32,9 @@ published.
   provider-reported usage.
 - Disabled automatic SDK retries so advertised call ceilings are not silently multiplied.
 - Closed the output preflight race with atomic no-clobber publication unless `--force` is explicit.
+- Bound file reads on the opened regular-file descriptor and CLI stdin before buffering full input;
+  reject ambiguous JSON, invalid Unicode, excessive nesting, and malformed score preferences safely.
+- Require pip 26.2 or newer in development tooling for PYSEC-2026-3721; lock pip 26.2.1.
 - Adopted the Samsarix LLC identity across the distribution, Python namespace, CLI, configuration, and
   support contacts.
 - Replaced the customized BSL text with the standard MPL-2.0 license, copyright notice, and trademark

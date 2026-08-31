@@ -6,10 +6,9 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
 
+from ._inputs import parse_json_object, read_utf8_file
 from .exceptions import InputValidationError
 from .models import NarrativeResult
 
@@ -35,18 +34,7 @@ def dumps_run_bundle(result: NarrativeResult, *, indent: int = 2) -> str:
 def loads_run_bundle(payload: str) -> NarrativeResult:
     """Load and strictly validate one run bundle from JSON text."""
 
-    if not isinstance(payload, str):
-        raise InputValidationError("run bundle payload must be text")
-    if len(payload.encode("utf-8")) > MAX_RUN_BUNDLE_BYTES:
-        raise InputValidationError(f"run bundle exceeds {MAX_RUN_BUNDLE_BYTES} bytes")
-    try:
-        decoded: Any = json.loads(payload)
-    except json.JSONDecodeError as error:
-        raise InputValidationError(
-            f"invalid run bundle JSON at line {error.lineno}, column {error.colno}"
-        ) from error
-    if not isinstance(decoded, Mapping):
-        raise InputValidationError("run bundle must contain a JSON object")
+    decoded = parse_json_object(payload, max_bytes=MAX_RUN_BUNDLE_BYTES, label="run bundle")
     try:
         return NarrativeResult.from_dict(decoded)
     except ValueError as error:
@@ -56,15 +44,5 @@ def loads_run_bundle(payload: str) -> NarrativeResult:
 def load_run_bundle(path: str | Path) -> NarrativeResult:
     """Load one UTF-8 run bundle from disk with a fixed size ceiling."""
 
-    selected = Path(path)
-    try:
-        if selected.stat().st_size > MAX_RUN_BUNDLE_BYTES:
-            raise InputValidationError(f"run bundle exceeds {MAX_RUN_BUNDLE_BYTES} bytes")
-        payload = selected.read_text(encoding="utf-8")
-    except InputValidationError:
-        raise
-    except (OSError, UnicodeError) as error:
-        raise InputValidationError(
-            f"cannot read UTF-8 run bundle ({type(error).__name__})"
-        ) from error
+    payload = read_utf8_file(path, max_bytes=MAX_RUN_BUNDLE_BYTES, label="run bundle")
     return loads_run_bundle(payload)

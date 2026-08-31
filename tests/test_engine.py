@@ -105,6 +105,7 @@ async def test_compatibility_generation_accepts_explicit_provider() -> None:
         ("", GenerationOptions(), "cannot be empty"),
         (" \n", GenerationOptions(), "cannot be empty"),
         ("bad\x00prompt", GenerationOptions(), "null bytes"),
+        ("bad\ud800prompt", GenerationOptions(), "valid Unicode"),
         ("abcd", GenerationOptions(max_prompt_chars=3), "maximum is 3"),
         ("ok", GenerationOptions(max_prompt_chars=0), "max_prompt_chars"),
         ("ok", GenerationOptions(max_prompt_chars=100_001), "max_prompt_chars"),

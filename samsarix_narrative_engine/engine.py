@@ -330,6 +330,10 @@ def _validate_preflight(prompt: str, options: GenerationOptions | WorkflowRunOpt
             f"prompt contains {len(creative_brief)} characters; "
             f"maximum is {options.max_prompt_chars}"
         )
+    try:
+        creative_brief.encode("utf-8")
+    except UnicodeError as error:
+        raise InputValidationError("prompt must contain valid Unicode") from error
     if (
         not isinstance(options.timeout_seconds, (int, float))
         or isinstance(options.timeout_seconds, bool)

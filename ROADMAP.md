@@ -6,7 +6,9 @@ This roadmap separates four gates: merge, release, publication, and flagship ado
 
 Product role: **local-first narrative operations SDK** for developers, studios, and editorial teams that need inspectable workflows rather than an opaque writing surface. Promotion to a supported release still requires real users and a measured advantage over a simpler single-call baseline.
 
-Current disposition: build the differentiated workflow, artifact, and evaluation layers on a verified default branch; release and adoption remain separate decisions.
+Current disposition: 0.1 release candidate with implemented workflows, artifacts, edit/resume, and
+blinded evaluation. An offline five-stage quest walkthrough exercises the complete installed-package
+journey. Release, publication, and evidence of adoption remain separate decisions.
 
 Near-term product wedge:
 
@@ -18,7 +20,8 @@ Near-term product wedge:
 ## Stabilize the productized default
 
 - Keep the default branch buildable from a clean checkout with exact-head CI and package-build evidence.
-- Keep Samsarix LLC branding, package identity, MPL-2.0 metadata, compatibility aliases, and support contacts consistent.
+- Keep Samsarix LLC branding, package identity, MPL-2.0 metadata, and support contacts consistent. The
+  unpublished Helix namespace was intentionally retired; no compatibility alias is advertised.
 - Preserve historical refs and use reviewable commits; do not rewrite or delete legacy history.
 - Run capped live-adapter smokes only with owner-funded accounts and explicit spend approval.
 - Keep the evidence inventory current in [COMPETITIVE_RESEARCH.md](docs/COMPETITIVE_RESEARCH.md).
@@ -37,6 +40,8 @@ Current hardening backlog:
 - Provider adapters are tested with injected clients, not owner-funded live calls against current models and accounts.
 - No comparative corpus, regression evaluation, real user pilot, or evidence yet shows that staged workflows outperform a simpler baseline enough to justify their cost.
 - Input-token cost is not bounded; model, API, and pricing churn require ongoing maintenance.
+- File/prompt transport and JSON parsing are bounded. The offline demonstration uses fixed text and
+  synthetic scores; it does not replace a funded live-adapter smoke or comparative human evaluation.
 - Versioned run bundles, edit/resume branching, custom workflows, and blinded pairwise evaluation are
   implemented; a representative corpus and real pilot results remain.
 - Final-stage streaming remains unimplemented and should follow demonstrated user demand.
