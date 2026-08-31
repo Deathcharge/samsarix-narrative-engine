@@ -31,6 +31,7 @@ from samsarix_narrative_engine import (
     workflow_for_preset,
 )
 from samsarix_narrative_engine.cli import main
+from samsarix_narrative_engine.evaluation import _canonical_digest
 
 
 def _result(
@@ -421,6 +422,41 @@ def test_report_counts_ties_without_awarding_a_preference(tmp_path: Path) -> Non
     assert "Both were usable." in report.markdown
 
 
+def test_report_rejects_numeric_evidence_that_could_overflow_aggregation(tmp_path: Path) -> None:
+    _write_fixture_runs(tmp_path)
+    prepared = prepare_evaluation(_manifest(), tmp_path)
+    key = json.loads(prepared.key_json)
+    for case in key["cases"]:
+        for evidence in case["assignments"].values():
+            evidence["calls"] = 9 * 10**4299
+    key["evidence_fingerprint"] = _canonical_digest(
+        {
+            name: value
+            for name, value in key.items()
+            if name not in {"schema", "evidence_fingerprint"}
+        }
+    )
+    key_json = json.dumps(key)
+    scores = _completed_scores(key_json, prepared.scores_json)
+    scores["evidence_fingerprint"] = key["evidence_fingerprint"]
+    key_path, scores_path = tmp_path / "key.json", tmp_path / "scores.json"
+    key_path.write_text(key_json, encoding="utf-8")
+    scores_path.write_text(json.dumps(scores), encoding="utf-8")
+    with pytest.raises(InputValidationError, match="evaluation key JSON"):
+        build_evaluation_report(key_path, scores_path)
+
+
+def test_prepare_rejects_oversized_duration_before_aggregation(tmp_path: Path) -> None:
+    _write_fixture_runs(tmp_path)
+    path = tmp_path / "runs" / "harbor-baseline.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    for stage in data["stages"]:
+        stage["duration_ms"] = 9 * 10**4299
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(InputValidationError, match="run bundle JSON"):
+        prepare_evaluation(_manifest(), tmp_path)
+
+
 def test_report_fingerprint_binds_blind_assignment_labels(tmp_path: Path) -> None:
     _write_fixture_runs(tmp_path)
     prepared = prepare_evaluation(_manifest(), tmp_path)
@@ -478,6 +514,16 @@ def test_report_fingerprint_binds_blind_assignment_labels(tmp_path: Path) -> Non
         (
             "scores",
             lambda data: data["cases"][0].update(preference=None),
+            "preference",
+        ),
+        (
+            "scores",
+            lambda data: data["cases"][0].update(preference={}),
+            "preference",
+        ),
+        (
+            "scores",
+            lambda data: data["cases"][0].update(preference=[]),
             "preference",
         ),
         (

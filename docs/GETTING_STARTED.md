@@ -3,6 +3,41 @@
 This guide takes a new user from a source checkout to one inspectable narrative run. It does not assume
 a published PyPI package or any private Samsarix infrastructure.
 
+## Offline walkthrough
+
+After activating an environment and running `python -m pip install -e .` from the checkout, run:
+
+```bash
+python examples/offline_workflow.py --output-dir offline-demo
+```
+
+No provider extra, credential, network connection, or paid call is needed. The script injects fixed
+text into the real CLI and executes the checked-in five-stage game-quest workflow. It saves the
+baseline, edits the continuity memo in a separate bundle, and resumes only `handoff` (one new call).
+It verifies that the resumed provider receives the human edit, then prepares an A/B review packet.
+
+- `baseline.json` / `baseline.md`: the original fixture run and handoff.
+- `edited.json`: the human-edited continuity memo, with the original preserved.
+- `branch.json` / `branch.md`: the resumed run and corrected handoff, including parent lineage.
+- `packet.md` / `scores.json`: blinded text and a blank review sheet.
+- `private-key.json` / `manifest.json`: private evaluation mapping and inputs.
+- `sample-scores.json` / `sample-report.md` / `sample-report.json`: explicitly synthetic, neutral
+  scores used only to exercise the reporting path. They do not demonstrate model quality.
+
+Use a new output directory on every run; the script refuses to overwrite prior work. Generation IDs
+and timings change, but fixture text and the 5 + 1 call counts are stable. Zero reported tokens means
+unreported usage, not a measured free model call. This example makes no model calls at all.
+
+For real review, give a reviewer **only** `packet.md` and blank `scores.json`. Keep the key, manifest,
+source bundles, and sample report private. After the reviewer completes the blank sheet, aggregate it:
+
+```bash
+samsarix-narrative evaluate report --key offline-demo/private-key.json --scores offline-demo/scores.json --output offline-demo/review-report.md --json-output offline-demo/review-report.json
+```
+
+The fixture verifies integration, not demand, production readiness, or comparative writing quality.
+Replace fixture generation with your funded provider and real briefs for those evaluations.
+
 ## 1. Create an isolated environment
 
 Samsarix Narrative Engine supports Python 3.10–3.14. Python 3.9 is intentionally unsupported because its
@@ -165,6 +200,9 @@ Read [EVALUATION.md](EVALUATION.md) before interpreting the arithmetic summary a
 
 - Missing key or optional SDK: exit 2 with the required environment variable or install extra.
 - Empty/oversized prompt or insufficient call/token budget: exit 2 before a provider call.
+- Nonregular/oversized files, ambiguous JSON (duplicate keys, nonfinite numbers, invalid Unicode), or
+  integers longer than 64 digits or JSON nesting deeper than 64 levels: exit 2. CLI raw prompts are capped at 100,000 characters before
+  trimming, prompt files at 400,000 bytes, and the configured brief limit applies after trimming.
 - Rate limit, provider error, empty response, or timeout: exit 3; no partial result is presented as
   success.
 - Existing/invalid/unwritable output: exit 4; pre-existing content is preserved unless `--force` was

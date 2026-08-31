@@ -19,21 +19,43 @@ python -m twine check dist/*
 
 Then install the wheel into a new environment and verify the installed—not source-tree—shape:
 
-```bash
-python -m venv wheel-check
-wheel-check/Scripts/python -m pip install dist/samsarix_narrative_engine-0.1.0-py3-none-any.whl
-wheel-check/Scripts/samsarix-narrative --version
-wheel-check/Scripts/samsarix-narrative plan --preset balanced
+PowerShell (run from the checkout after building):
+
+```powershell
+$repo = (Get-Location).Path
+$check = Join-Path ([System.IO.Path]::GetTempPath()) ('samsarix-wheel-' + [guid]::NewGuid())
+python -m venv $check
+& "$check/Scripts/python.exe" -m pip install "$repo/dist/samsarix_narrative_engine-0.1.0-py3-none-any.whl"
+Push-Location ([System.IO.Path]::GetTempPath())
+& "$check/Scripts/samsarix-narrative.exe" --version
+& "$check/Scripts/samsarix-narrative.exe" plan --preset balanced
+& "$check/Scripts/python.exe" "$repo/examples/offline_workflow.py" --output-dir "$check/walkthrough"
+Pop-Location
 ```
 
-On macOS/Linux, executables are under `wheel-check/bin/`. Remove the temporary environment only after
-confirming its resolved path is the intended test directory.
+macOS/Linux:
+
+```bash
+repo="$PWD"
+check="$(mktemp -d)"
+python -m venv "$check/venv"
+"$check/venv/bin/python" -m pip install "$repo/dist/samsarix_narrative_engine-0.1.0-py3-none-any.whl"
+cd "$check"
+"$check/venv/bin/samsarix-narrative" --version
+"$check/venv/bin/samsarix-narrative" plan --preset balanced
+"$check/venv/bin/python" "$repo/examples/offline_workflow.py" --output-dir "$check/walkthrough"
+cd "$repo"
+```
+
+The working directory is deliberately outside the checkout. The example imports only the installed
+package and reads its checked-in workflow fixture; CI repeats this complete wheel-only journey.
+Remove temporary environments only after confirming their resolved paths are the intended test directories.
 
 ## Artifact contents
 
 The wheel must contain the `samsarix_narrative_engine` modules and `py.typed`, but no tests, credentials,
 `.env`, coverage output, generated stories, or duplicate `src` package. The source distribution includes
-license and user documentation needed to evaluate the work.
+license, user documentation, roadmap, lockfile, tests, and offline examples needed to evaluate the work.
 
 ## Owner-controlled publication gates
 

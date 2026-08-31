@@ -32,7 +32,8 @@ The initial branch was `main` at `656dbc6`, matching `origin/main`. `git status 
 clean. One remote tracking branch existed (`origin/dependabot/pip/pip-c269d3ef21`); no tags or local
 release branches existed. Initial productization was isolated on
 `codex/productize-narrative-engine`; differentiated product work continues on
-`codex/competitive-offering`.
+`codex/competitive-offering`. Those features were subsequently merged. The 2026-08-31 closure pass
+started from clean `main` at `6ec6371` and uses `codex/release-closure`.
 
 ## Chosen product
 
@@ -226,9 +227,10 @@ final verification therefore uses the isolated project environment and fresh whe
 - Replaced the customized BSL with standard MPL-2.0, Samsarix LLC copyright/SPDX notices, redistribution
   guidance, and an explicit trademark policy.
 
-## Final local verification
+## Historical local verification (2026-08-10)
 
-Recorded on Windows 10 with Python 3.11.9 after the final implementation changes:
+Recorded on Windows 10 with Python 3.11.9 after that implementation milestone; superseded by the
+closure verification below where applicable:
 
 | Command/check | Actual result |
 | --- | --- |
@@ -255,6 +257,80 @@ for code created before the company rebrand.
 
 The final exact-head remote CI status is recorded in the pull request before merge. Samsarix-funded
 live-provider calls were intentionally not made.
+
+## Release closure (2026-08-31)
+
+Baseline on current main: 173 tests passed with 92.85% branch coverage; `uv lock --check` resolved
+84 packages. The older assignment-fingerprint and output-link fixes were already merged and retained.
+The installed development environment still contained pip 26.1.2, for which `pip_audit` reported
+[PYSEC-2026-3721](https://osv.dev/vulnerability/PYSEC-2026-3721). The minimum is now 26.2 and the lock
+selects 26.2.1; no unrelated major SDK migration was included.
+
+Locally actionable closure findings:
+
+- [x] **P1:** File loaders checked pathname size before an unbounded read. A shared opened-descriptor
+  reader now requires regular files, checks their metadata, and enforces byte ceilings during reading.
+  Tests understate file metadata and prove that only the ceiling plus one rejection byte is read.
+- [x] **P1:** Prompt file/stdin reads allocated before validation. Reads now have a fixed transport
+  ceiling; normal short stdin chunks, Unicode, file newline normalization, and stripped brief limits
+  remain supported. Invalid prompts/options fail before provider construction.
+- [x] **P1:** Malformed/ambiguous JSON could leak parser errors or fail after validation. Shared parsing
+  rejects duplicate keys, nonfinite numbers, unpaired surrogates, deep nesting, and integers longer
+  than 64 digits. Score preferences have an explicit type guard. The final independent review found
+  a numeric-aggregation error, reproduced before the fix and now covered on prepare/report paths.
+- [x] **P1:** Fix the current pip advisory without changing provider compatibility ranges.
+- [x] **P2:** Add a copy-pasteable offline game-quest journey covering actual CLI generation, artifact
+  editing, one-call suffix resume, blind packet preparation, and reporting. Preserve a blank review
+  sheet; clearly mark separate sample scores as synthetic and non-evidentiary.
+- [x] **P2:** Exercise that journey from a wheel-only environment outside the checkout in CI. Include
+  the roadmap and lockfile in the source distribution, and align installation/release instructions.
+
+Verification uses a fresh, non-editable locked development environment at a new temporary path
+(`UV_PROJECT_ENVIRONMENT`), Python 3.14.7 on Windows. The interpreter is abbreviated `python` below;
+`uv` was invoked through the bootstrap environment's `python -m uv`.
+
+| Exact command/check | Actual result |
+| --- | --- |
+| `uv sync --locked --all-extras --no-editable` | Exit 0; 84 lock entries resolved; 74 applicable packages installed. |
+| `python -m ruff format --check .` | Exit 0; 42 files formatted. |
+| `python -m ruff check .` | Exit 0. |
+| `python -m mypy samsarix_narrative_engine` | Exit 0; 12 source files. |
+| `python -m pytest` | Exit 0; 229 passed, one POSIX-only FIFO test skipped on Windows; 93.53% coverage. |
+| `python -m pip check` | Exit 0; no broken requirements. |
+| `python -m pip_audit --cache-dir <fresh-cache>` | Exit 0; no known vulnerabilities; unpublished local package skipped. |
+| `uv export --locked --all-extras --no-hashes --no-emit-project --output-file <temp>/locked-requirements.txt` then `python -m pip_audit -r <temp>/locked-requirements.txt --no-deps --disable-pip --cache-dir <fresh-cache>` | Both exit 0; no known vulnerabilities among applicable locked dependencies. Linux CI audits Linux-only markers. |
+| `git diff --check` | Exit 0. |
+
+The initial test-edit pass exposed a parametrization typo and a misplaced assertion; both were fixed,
+not suppressed. A regression first reproduced the report's raw numeric `ValueError`; the final suite
+rejects it as `InputValidationError` before aggregation. Legitimate Unicode, edit/resume, and evaluation
+controls still pass. The `fix-finding` process included one independent boundary investigation and one
+independent bypass/regression review. This is focused evidence, not a security certification. An older
+unsealed workbench scan targeting `b656c7c` is not evidence about the current release candidate.
+
+Package verification on the same final source:
+
+| Exact command/check | Actual result |
+| --- | --- |
+| `python -m compileall -q samsarix_narrative_engine tests examples` | Exit 0 on Python 3.11.9. |
+| `uv lock --check` | Exit 0; 84 packages. |
+| `python -m build --outdir <temp>/final-dist` | Exit 0; built sdist and universal wheel. |
+| `python -m twine check <temp>/final-dist/*` | Exit 0; both artifacts passed. |
+| `uv venv --python <clean-python> --seed <temp>/wheel` and wheel-only `python -m pip install --no-index <wheel>` | Exit 0; pip 26.2.1 and the base package only. |
+| Outside-checkout import check; console `--version`; `plan --preset balanced`; `python <checkout>/examples/offline_workflow.py --output-dir <new-temp-output>` | Exit 0; imports resolve to wheel site-packages; no OpenAI/Anthropic SDK; five initial calls, one resumed call, blank scores, and synthetic report persisted. |
+| Wheel-environment `python -m pip check` | Exit 0; no broken requirements. |
+| Wheel/sdist member inspection | 20 wheel package/metadata entries; no tests/examples/secrets; sdist includes lockfile, roadmap, offline example, and custom workflow. |
+| Credential-pattern scan using `rg -l` | Exit 1 (no matching credential-shaped files). This is a bounded pattern check, not a secret-scanning guarantee. |
+
+Exact-head hosted CI and merge evidence belong to the closure PR. The local wheel SHA-256 was
+`df03a5a247c713df0385f9da4b18ad39872a0fb1f74b58c7fc0ef717f9948e9c`; this identifies that local
+verification artifact, not a published release or a promise of reproducible build bytes.
+
+No known locally actionable P0/P1 remains in this closure scope. The precise disposition is a
+**release candidate with external gates**, not validated product-market fit or a production service.
+The next steps, in value order, are: owner-funded live-adapter smokes; one real editorial/game pilot
+against a single-call baseline; legal ownership-chain and publication approval; then demand-led
+streaming or another provider adapter. The offline fixture cannot substitute for those evaluations.
 
 ## Deferred and blocked work
 
