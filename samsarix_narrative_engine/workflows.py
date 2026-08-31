@@ -6,10 +6,10 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
+from ._inputs import parse_json_object, read_utf8_file
 from .exceptions import InputValidationError
 from .models import GenerationPlan, PlannedStage, WorkflowDefinition
 
@@ -62,18 +62,7 @@ def dumps_workflow(workflow: WorkflowDefinition, *, indent: int = 2) -> str:
 def loads_workflow(payload: str) -> WorkflowDefinition:
     """Load one strict workflow definition from JSON text."""
 
-    if not isinstance(payload, str):
-        raise InputValidationError("workflow payload must be text")
-    if len(payload.encode("utf-8")) > MAX_WORKFLOW_BYTES:
-        raise InputValidationError(f"workflow exceeds {MAX_WORKFLOW_BYTES} bytes")
-    try:
-        decoded: Any = json.loads(payload)
-    except json.JSONDecodeError as error:
-        raise InputValidationError(
-            f"invalid workflow JSON at line {error.lineno}, column {error.colno}"
-        ) from error
-    if not isinstance(decoded, Mapping):
-        raise InputValidationError("workflow must contain a JSON object")
+    decoded = parse_json_object(payload, max_bytes=MAX_WORKFLOW_BYTES, label="workflow")
     try:
         return WorkflowDefinition.from_dict(decoded)
     except ValueError as error:
@@ -83,15 +72,5 @@ def loads_workflow(payload: str) -> WorkflowDefinition:
 def load_workflow(path: str | Path) -> WorkflowDefinition:
     """Load one UTF-8 workflow file with a fixed size ceiling."""
 
-    selected = Path(path)
-    try:
-        if selected.stat().st_size > MAX_WORKFLOW_BYTES:
-            raise InputValidationError(f"workflow exceeds {MAX_WORKFLOW_BYTES} bytes")
-        payload = selected.read_text(encoding="utf-8")
-    except InputValidationError:
-        raise
-    except (OSError, UnicodeError) as error:
-        raise InputValidationError(
-            f"cannot read UTF-8 workflow ({type(error).__name__})"
-        ) from error
+    payload = read_utf8_file(path, max_bytes=MAX_WORKFLOW_BYTES, label="workflow")
     return loads_workflow(payload)

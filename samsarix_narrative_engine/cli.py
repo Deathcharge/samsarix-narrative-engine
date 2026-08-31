@@ -17,9 +17,10 @@ from pathlib import Path
 from typing import Optional
 
 from . import __version__
+from ._inputs import read_utf8_file
 from .agents import PRESETS, workflow_for_preset
 from .artifacts import dumps_run_bundle, load_run_bundle
-from .engine import NarrativeEngine
+from .engine import MAX_CONFIGURED_PROMPT_CHARS, NarrativeEngine, _validate_preflight
 from .evaluation import (
     build_evaluation_report,
     load_evaluation_manifest,
@@ -222,15 +223,35 @@ def _render_plan(
 
 
 def _read_prompt(args: argparse.Namespace) -> str:
-    if args.prompt is not None:
-        return str(args.prompt)
-    if args.prompt_file == "-":
-        return sys.stdin.read()
+    if not 1 <= args.max_prompt_chars <= MAX_CONFIGURED_PROMPT_CHARS:
+        raise InputValidationError(
+            f"max_prompt_chars must be between 1 and {MAX_CONFIGURED_PROMPT_CHARS}"
+        )
+    # A fixed transport ceiling also bounds surrounding whitespace. The configured
+    # brief limit is applied after stripping, as in the SDK's existing contract.
+    limit = MAX_CONFIGURED_PROMPT_CHARS
     try:
-        return Path(args.prompt_file).read_text(encoding="utf-8")
+        if args.prompt is not None:
+            prompt = str(args.prompt)
+        elif args.prompt_file == "-":
+            chunks: list[str] = []
+            remaining = limit + 1
+            while remaining:
+                chunk = sys.stdin.read(min(65_536, remaining))
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            prompt = "".join(chunks)
+        else:
+            prompt = read_utf8_file(args.prompt_file, max_bytes=limit * 4, label="prompt file")
+        if len(prompt) > limit:
+            raise InputValidationError(f"raw prompt exceeds {limit} characters")
+        prompt.encode("utf-8")
+        return prompt
     except (OSError, UnicodeError) as error:
         raise InputValidationError(
-            f"cannot read UTF-8 prompt file ({type(error).__name__})"
+            f"cannot read UTF-8 prompt file or stdin ({type(error).__name__})"
         ) from error
 
 
@@ -376,6 +397,7 @@ async def _generate(args: argparse.Namespace, provider_factory: ProviderFactory)
         max_calls=args.max_calls,
         max_total_output_tokens=args.max_total_output_tokens,
     )
+    prompt = _validate_preflight(prompt, options)
     provider = provider_factory(
         args.provider,
         model=args.model,

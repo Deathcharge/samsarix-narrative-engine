@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Optional
 
+from ._inputs import parse_json_object, read_utf8_file
 from .artifacts import dumps_run_bundle, load_run_bundle
 from .exceptions import InputValidationError
 
@@ -98,26 +99,8 @@ def _table_cell(value: str) -> str:
 
 
 def _read_json_object(path: str | Path, label: str) -> Mapping[str, Any]:
-    selected = Path(path)
-    try:
-        if selected.stat().st_size > MAX_EVALUATION_BYTES:
-            raise InputValidationError(f"{label} exceeds {MAX_EVALUATION_BYTES} bytes")
-        payload = selected.read_text(encoding="utf-8")
-    except InputValidationError:
-        raise
-    except (OSError, UnicodeError) as error:
-        raise InputValidationError(f"cannot read UTF-8 {label} ({type(error).__name__})") from error
-    if len(payload.encode("utf-8")) > MAX_EVALUATION_BYTES:
-        raise InputValidationError(f"{label} exceeds {MAX_EVALUATION_BYTES} bytes")
-    try:
-        decoded: Any = json.loads(payload)
-    except json.JSONDecodeError as error:
-        raise InputValidationError(
-            f"invalid {label} JSON at line {error.lineno}, column {error.colno}"
-        ) from error
-    if not isinstance(decoded, Mapping):
-        raise InputValidationError(f"{label} must contain a JSON object")
-    return decoded
+    payload = read_utf8_file(path, max_bytes=MAX_EVALUATION_BYTES, label=label)
+    return parse_json_object(payload, max_bytes=MAX_EVALUATION_BYTES, label=label)
 
 
 @dataclass(frozen=True)
@@ -732,7 +715,8 @@ def _validated_scores(
             for score in label_scores.values():
                 if not isinstance(score, int) or isinstance(score, bool) or not 1 <= score <= 5:
                     raise ValueError("all rubric scores must be integers from 1 through 5")
-        if raw_case.get("preference") not in {"A", "B", "tie"}:
+        preference = raw_case.get("preference")
+        if not isinstance(preference, str) or preference not in {"A", "B", "tie"}:
             raise ValueError("preference must be A, B, or tie")
         notes = raw_case.get("notes")
         if not isinstance(notes, str) or "\x00" in notes or len(notes) > 5_000:

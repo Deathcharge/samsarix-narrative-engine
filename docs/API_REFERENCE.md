@@ -63,6 +63,23 @@ a `preset` field. It is accepted by `NarrativeEngine.run` and `NarrativeEngine.r
 
 ## Workflow definitions
 
+### Input transport and JSON contract
+
+All file loaders accept regular UTF-8 files, including symlinks to regular files. They inspect the
+opened descriptor and read at most the relevant byte ceiling plus one rejection byte, rather than
+trusting a separate pathname size check. Workflow/run/evaluation ceilings are respectively 1 MiB,
+16 MiB, and 2 MiB. Disk CRLF/CR newlines normalize to LF. Devices and named pipes are rejected.
+
+Text and file JSON loaders reject duplicate decoded keys, nonfinite numbers (including exponent
+overflow), integers longer than 64 decimal digits (excluding the sign), unpaired Unicode surrogates,
+and nesting beyond 64 levels. The integer ceiling leaves headroom for report aggregation. These failures and parser
+recursion/integer limits become `InputValidationError`; valid Unicode surrogate pairs remain accepted.
+
+The CLI additionally caps raw prompts at 100,000 characters (including whitespace) and prompt files at
+400,000 bytes before applying `max_prompt_chars` to the stripped brief. Stdin reads are bounded but
+EOF-framed, not timed. SDK callers supply an already-allocated string and retain the stripped-brief
+character limit. No input is silently truncated.
+
 ### `WorkflowStage`
 
 Immutable stage fields are `stage_id`, `role`, `system_prompt`, `max_output_tokens`, and
