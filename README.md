@@ -40,10 +40,10 @@ python -m venv .venv
 ```
 
 Activate it with `.venv\Scripts\Activate.ps1` on PowerShell or `source .venv/bin/activate` on macOS and
-Linux. Install one provider extra from the repository:
+Linux. Install the dependency-free core from the repository:
 
 ```bash
-python -m pip install -e ".[openai]"
+python -m pip install -e .
 ```
 
 Inspect the default workflow without credentials:
@@ -52,7 +52,19 @@ Inspect the default workflow without credentials:
 samsarix-narrative plan --preset balanced
 ```
 
-Set one key in your shell—do not put it in source code—and generate a story:
+Try the entire generate → edit → resume → blinded review journey without a key or network:
+
+```bash
+python examples/offline_workflow.py --output-dir offline-demo
+```
+
+This runs the real CLI and game-quest workflow with fixed provider responses: five initial calls and
+one resumed handoff. Read `offline-demo/branch.md` and `offline-demo/packet.md`. The blank `scores.json`
+is ready for review; `sample-report.md` uses explicitly synthetic neutral scores, not quality evidence.
+The script refuses an existing output directory. See [the walkthrough](docs/GETTING_STARTED.md#offline-walkthrough).
+
+For live generation, install one provider extra with `python -m pip install -e ".[openai]"`, then set
+one key in your shell—do not put it in source code—and generate a story:
 
 ```powershell
 $env:OPENAI_API_KEY = "your-key"
@@ -100,6 +112,11 @@ samsarix-narrative evaluate report --key key.json --scores scores.json --output 
 `--prompt-file -` reads UTF-8 text from standard input. Without `--output`, the final stage output is
 written to standard output and status/accounting goes to standard error, which makes non-interactive
 pipelines predictable. `--artifacts` writes the full result as UTF-8 JSON.
+
+CLI input has a 100,000-character raw transport ceiling, including surrounding whitespace; prompt
+files also have a 400,000-byte ceiling. The configured brief limit (12,000 characters by default) is
+applied after trimming. Stdin is EOF-framed: close the pipe when finished; the size bound is not a read
+timeout. Files must be regular UTF-8 files, not devices or named pipes.
 
 Meaningful exits are:
 
